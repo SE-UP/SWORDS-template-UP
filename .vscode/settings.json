@@ -1,0 +1,5 @@
+{
+    "python.analysis.extraPaths": [
+        "./collect_variables/scripts/github_api"
+    ]
+}
