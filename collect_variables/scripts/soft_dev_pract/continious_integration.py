@@ -30,15 +30,6 @@ print(f"Username: {username}")
 g = Github(token)
 
 def check_github_actions(repo):
-    """
-    Check if a GitHub repository has implemented GitHub Actions.
-
-    Parameters:
-    repo (github.Repository.Repository): The GitHub repository to check.
-
-    Returns:
-    bool: True if '.github/workflows' directory is found, False otherwise.
-    """
     try:
         contents = repo.get_contents("")
         for content in contents:
@@ -46,24 +37,89 @@ def check_github_actions(repo):
                 github_contents = repo.get_contents(content.path)
                 for github_content in github_contents:
                     if github_content.type == "dir" and github_content.name == "workflows":
-                        return True
-        return False
+                        return 'github_actions'
+        return None
     except GithubException as e:
         print(f"Error accessing repository: {e}")
-        return False
+        return None
+
+def check_travis(repo):
+    """
+    Check if a GitHub repository has implemented Travis CI.
+
+    Parameters:
+    repo (github.Repository.Repository): The GitHub repository to check.
+
+    Returns:
+    bool: True if '.travis.yml' file is found, False otherwise.
+    """
+    try:
+        repo.get_contents(".travis.yml")
+        return 'travis'
+    except GithubException as e:
+        print(f"Error accessing repository: {e}")
+        return None
+
+def check_circleci(repo):
+    """
+    Check if a GitHub repository has implemented CircleCI.
+
+    Parameters:
+    repo (github.Repository.Repository): The GitHub repository to check.
+
+    Returns:
+    bool: True if '.circleci/config.yml' file is found, False otherwise.
+    """
+    try:
+        repo.get_contents(".circleci/config.yml")
+        return 'circleci'
+    except GithubException as e:
+        print(f"Error accessing repository: {e}")
+        return None
+
+def check_jenkins(repo):
+    """
+    Check if a GitHub repository has implemented Jenkins.
+
+    Parameters:
+    repo (github.Repository.Repository): The GitHub repository to check.
+
+    Returns:
+    bool: True if 'Jenkinsfile' is found, False otherwise.
+    """
+    try:
+        repo.get_contents("Jenkinsfile")
+        return 'jenkins'
+    except GithubException as e:
+        print(f"Error accessing repository: {e}")
+        return None
+
+def check_azure_pipelines(repo):
+    """
+    Check if a GitHub repository has implemented Azure Pipelines.
+
+    Parameters:
+    repo (github.Repository.Repository): The GitHub repository to check.
+
+    Returns:
+    bool: True if 'azure-pipelines.yml' file is found, False otherwise.
+    """
+    try:
+        repo.get_contents("azure-pipelines.yml")
+        return 'azure_pipelines'
+    except GithubException as e:
+        print(f"Error accessing repository: {e}")
+        return None
 
 
 def main(csv_file):
-    """
-    Main function to read the CSV file, check the repositories,
-      and update the CSV file.
+    df = pd.read_csv(csv_file, sep=';', on_bad_lines='warn')
+    if 'continuous_integration' not in df.columns:
+        df['continuous_integration'] = False
+    if 'ci_tool' not in df.columns:
+        df['ci_tool'] = None
 
-    Parameters:
-    csv_file (str): The path to the CSV file.
-    """
-    df = pd.read_csv(csv_file, sep=',', on_bad_lines='warn') # cheange sep to ',' from ';' when using the csv file
-    if 'github_actions' not in df.columns:
-        df['github_actions'] = None
+    ci_checks = [check_github_actions, check_travis, check_circleci, check_jenkins, check_azure_pipelines]
 
     count = 0
     for index, row in df.iterrows():
@@ -71,14 +127,16 @@ def main(csv_file):
         if pd.isna(url):
             print("Skipping row with missing URL")
             continue
-        if not pd.isna(row['github_actions']):
-            print(f"Skipping repository {url} with existing GitHub Actions value: {row['github_actions']}")
-            continue
         print(f"Working on repository: {url}")
         repo_name = url.split('https://github.com/')[-1]
         try:
             repo = g.get_repo(repo_name)
-            df.loc[index, 'github_actions'] = check_github_actions(repo)
+            for ci_check in ci_checks:
+                ci_tool = ci_check(repo)
+                if ci_tool is not None:
+                    df.loc[index, 'continuous_integration'] = True
+                    df.loc[index, 'ci_tool'] = ci_tool
+                    break
             count += 1
             print(f"Repositories completed: {count}")
             df.to_csv(csv_file, index=False)  # Save to CSV after each repository is checked
