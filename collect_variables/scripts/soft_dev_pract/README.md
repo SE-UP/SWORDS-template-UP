@@ -9,3 +9,7 @@ to run the continious_integration.py use the following command in the collect_va
 add_ci_rules.py - checks if additional rules are present in the yaml or yml file for linters and testing for languages python,R and cpp
  to run the program add_ci_rules.py use the following command in the collect_varibales 
  python3 scripts/soft_dev_pract/add_ci_rules.py results/user_research_repos_test.csv
+
+comment_at_start.py -  Chekcs the presence of comments at the start of source code files in GitHub repositories.
+To run the comment_at_start.py program use following command 
+python3 scripts/soft_dev_pract/comment_at_start.py results/final_data_publish.csv
