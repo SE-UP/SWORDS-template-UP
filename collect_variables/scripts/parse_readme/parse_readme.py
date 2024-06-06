@@ -20,7 +20,7 @@ def read_input_file(file_path):
     if "xlsx" in file_path:
         input_file = pd.read_excel(file_path, engine='openpyxl')
     else:
-        input_file = pd.read_csv(file_path)
+        input_file = pd.read_csv(file_path, sep=";")
     return input_file
 
 
@@ -48,12 +48,13 @@ if __name__ == '__main__':
     df_repos = read_input_file(args.input)
     df_repos = df_repos.dropna()
     results = []
-    for url, readme in zip(df_repos["html_url_repository"], df_repos["readme"]):
-        install_instruction = bool(re.search("install|docker", readme))
-        usage_example = bool(re.search("usage|getting started|quick start|example|tutorial",
-                                       readme))
-        contrib_guidelines = bool(re.search("contribut", readme))
-        results.append([url, install_instruction, usage_example, contrib_guidelines])
+for url, readme in zip(df_repos.get("html_url", pd.Series(index=df_repos.index)), df_repos.get("readme", pd.Series(index=df_repos.index))):
+    install_instruction = bool(re.search("install|docker", str(readme)))
+    usage_example = bool(re.search("usage|getting started|quick start|example|tutorial",
+                                   str(readme)))
+    contrib_guidelines = bool(re.search("contribut", str(readme)))
+    results.append([url, install_instruction, usage_example, contrib_guidelines])
+
     print(results)
 
     df_results = pd.DataFrame(results,

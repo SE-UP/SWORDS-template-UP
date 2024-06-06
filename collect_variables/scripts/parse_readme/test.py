@@ -52,7 +52,7 @@ def get_readme_content(github_url):
 
 def main():
     """
-    Main function that accepts a GitHub repository URL and prints the README content.
+    Main function that accepts a GitHub repository URL and prints the README.md content.
     """
     # Set up command-line argument parsing
     parser = argparse.ArgumentParser(description='Fetch and print the README content from a GitHub repository.')
