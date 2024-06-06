@@ -29,6 +29,7 @@ def get_readme_content(github_url):
 
     # Initialize the GitHub API client with the token
     api = GhApi(token=token)
+    print
 
     # Parse the URL and unquote to handle URLs with special characters
     parsed_url = urlparse(unquote(github_url))
