@@ -43,13 +43,13 @@ def check_test_folder(repo):
     try:
         contents = repo.get_contents("")
         for content in contents:
-            if content.type == "dir" and content.name.lower() in ["test", "tests"]:
+            if content.type == "dir" and \
+                    content.name.lower() in ["test", "tests"]:
                 return True
         return False
     except GithubException as e:
         print(f"Error accessing repository: {e}")
         return False
-
 
 
 def main(csv_file):
@@ -73,7 +73,8 @@ def main(csv_file):
         repo_name = url.split('https://github.com/')[-1]
         try:
             repo = g.get_repo(repo_name)
-            df.loc[df['html_url'] == url, 'test_folder'] = check_test_folder(repo)
+            df.loc[df['html_url'] == url, 'test_folder'] = \
+                check_test_folder(repo)
             count += 1
             print(f"Repositories completed: {count}")
         except GithubException as e:
