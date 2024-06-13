@@ -1,10 +1,16 @@
 """
-This script reads a CSV file containing GitHub repository URLs. 
-For each repository that has GitHub Actions enabled, it checks the YAML files in the .github/workflows directory 
-for the presence of certain testing libraries and linters for Python, R, and C++. 
-The results are written back to the CSV file in the 'add_test_rule' and 'add_lint_rule' columns. 
-The script handles the GitHub API rate limit by sleeping until the rate limit resets.
-If the 'add_test_rule' and 'add_lint_rule' columns already have a value (True or False), the repository is skipped.
+This script reads a CSV file containing GitHub repository URLs.
+For each repository that has GitHub Actions enabled, it checks the
+YAML files in the .github/workflows directory
+for the presence of certain testing libraries and linters for
+Python, R, and C++.
+The results are written back to the CSV file in the 'add_test_rule'
+and 'add_lint_rule' columns
+The script handles the GitHub API rate limit by sleeping until the
+rate limit resets.
+If the 'add_test_rule' and 'add_lint_rule' columns already have
+a value (True or False),
+ the repository is skipped.
 """
 
 import os
@@ -46,6 +52,7 @@ linters = {
     'cpp': ['cpplint']
 }
 
+
 def get_all_files(repo, path):
     """
     Recursively get all files in a given repository path.
@@ -66,12 +73,17 @@ def get_all_files(repo, path):
             else:
                 contents.append(content)
     except GithubException as e:
-        print(f"Error accessing path {path} in repository {repo.full_name}: {e}")
+        print(
+            f"Error accessing path {path} in repository "
+            f"{repo.full_name}: {e}"
+        )
     return contents
+
 
 def check_testing_libraries(file_content, language):
     """
-    Check if a YAML file contains any of the testing libraries for a given language.
+    Check if a YAML file contains any of the testing libraries
+    for a given language.
 
     Parameters:
     file_content (str): The content of the YAML file.
@@ -84,6 +96,7 @@ def check_testing_libraries(file_content, language):
         if re.search(r'\b' + re.escape(library) + r'\b', file_content):
             return True
     return False
+
 
 def check_linters(file_content, language):
     """
@@ -101,9 +114,11 @@ def check_linters(file_content, language):
             return True
     return False
 
+
 def main(csv_file):
     """
-    Main function that reads the CSV file and checks each repository for testing libraries and linters.
+    Main function that reads the CSV file and checks each repository for
+    testing libraries and linters.
 
     Parameters:
     csv_file (str): Path to the CSV file.
@@ -126,7 +141,8 @@ def main(csv_file):
         if pd.isna(row['ci_tool']):
             print(f"Skipping repository {url} without CI tool")
             continue
-        if not pd.isna(row['add_test_rule']) or not pd.isna(row['add_lint_rule']):
+        if not pd.isna(row['add_test_rule']) or \
+                not pd.isna(row['add_lint_rule']):
             print(f"Skipping repository {url} with existing test or lint rule")
             continue
         print(f"Working on repository: {url}")
@@ -137,21 +153,27 @@ def main(csv_file):
             for path in paths:
                 contents = get_all_files(repo, path)
                 for content in contents:
-                    if content.name.endswith('.yml') or content.name.endswith('.yaml'):
+                    if content.name.endswith('.yml') or \
+                            content.name.endswith('.yaml'):
                         file_content = content.decoded_content.decode()
-                        df.loc[index, 'add_test_rule'] = check_testing_libraries(file_content, 'python')
-                        df.loc[index, 'add_lint_rule'] = check_linters(file_content, 'python')
+                        df.loc[index, 'add_test_rule'] = \
+                            check_testing_libraries(file_content, 'python')
+                        df.loc[index, 'add_lint_rule'] = \
+                            check_linters(file_content, 'python')
             # Check for .travis.yml in the root directory
             try:
                 travis_file = repo.get_contents(".travis.yml")
                 file_content = travis_file.decoded_content.decode()
-                df.loc[index, 'add_test_rule'] = check_testing_libraries(file_content, 'python')
-                df.loc[index, 'add_lint_rule'] = check_linters(file_content, 'python')
+                df.loc[index, 'add_test_rule'] = \
+                    check_testing_libraries(file_content, 'python')
+                df.loc[index, 'add_lint_rule'] = \
+                    check_linters(file_content, 'python')
             except GithubException:
                 print(f"No .travis.yml file found in repository {repo_name}")
             count += 1
             print(f"Repositories completed: {count}")
-            df.to_csv(csv_file, index=False)  # Save to CSV after each repository is checked
+            # Save to CSV after each repository is checked
+            df.to_csv(csv_file, index=False)
         except RateLimitExceededException as e:
             print("Rate limit exceeded. Sleeping until reset...")
             reset_time = g.rate_limiting_resettime
@@ -163,8 +185,10 @@ def main(csv_file):
             print(f"Error accessing repository {repo_name}: {e}")
             continue
 
+
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Check for testing libraries and linters in GitHub repositories.')
+    description = 'Check for testing libraries and linters in repositories.'
+    parser = argparse.ArgumentParser(description=description)
     parser.add_argument('csv_file', type=str, help='Input CSV file')
     args = parser.parse_args()
     main(args.csv_file)
