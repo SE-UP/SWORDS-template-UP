@@ -1,6 +1,8 @@
 """
-This script checks for the presence of folders .github (github actions) in the root
-directory of GitHub repositories listed in a CSV file. It uses the GitHub API
+This script checks for the presence of folders .github (github actions)
+in the root
+directory of GitHub repositories listed in a CSV file.
+It uses the GitHub API
 to access the repositories and updates the CSV file with the results.
 """
 
@@ -29,6 +31,7 @@ print(f"Username: {username}")
 # Use the token to create a Github instance
 g = Github(token)
 
+
 def check_github_actions(repo):
     try:
         contents = repo.get_contents("")
@@ -36,12 +39,14 @@ def check_github_actions(repo):
             if content.type == "dir" and content.name == ".github":
                 github_contents = repo.get_contents(content.path)
                 for github_content in github_contents:
-                    if github_content.type == "dir" and github_content.name == "workflows":
+                    if (github_content.type == "dir" and
+                            github_content.name == "workflows"):
                         return 'github_actions'
         return None
     except GithubException as e:
         print(f"Error accessing repository: {e}")
         return None
+
 
 def check_travis(repo):
     """
@@ -60,6 +65,7 @@ def check_travis(repo):
         print(f"Error accessing repository: {e}")
         return None
 
+
 def check_circleci(repo):
     """
     Check if a GitHub repository has implemented CircleCI.
@@ -77,6 +83,7 @@ def check_circleci(repo):
         print(f"Error accessing repository: {e}")
         return None
 
+
 def check_jenkins(repo):
     """
     Check if a GitHub repository has implemented Jenkins.
@@ -93,6 +100,7 @@ def check_jenkins(repo):
     except GithubException as e:
         print(f"Error accessing repository: {e}")
         return None
+
 
 def check_azure_pipelines(repo):
     """
@@ -119,7 +127,13 @@ def main(csv_file):
     if 'ci_tool' not in df.columns:
         df['ci_tool'] = None
 
-    ci_checks = [check_github_actions, check_travis, check_circleci, check_jenkins, check_azure_pipelines]
+        ci_checks = [
+            check_github_actions,
+            check_travis,
+            check_circleci,
+            check_jenkins,
+            check_azure_pipelines
+        ]
 
     count = 0
     for index, row in df.iterrows():
@@ -139,7 +153,8 @@ def main(csv_file):
                     break
             count += 1
             print(f"Repositories completed: {count}")
-            df.to_csv(csv_file, index=False)  # Save to CSV after each repository is checked
+            # Save to CSV after each repository is checked
+            df.to_csv(csv_file, index=False)
         except RateLimitExceededException as e:
             print("Rate limit exceeded. Sleeping until reset...")
             reset_time = g.rate_limiting_resettime
@@ -150,6 +165,7 @@ def main(csv_file):
         except GithubException as e:
             print(f"Error accessing repository {repo_name}: {e}")
             continue
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
