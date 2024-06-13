@@ -1,5 +1,6 @@
 '''
-This program checks the presence of comments at the start of source code files in GitHub repositories.
+This program checks the presence of comments at the start of
+source code files in GitHub repositories.
 '''
 import os
 import pandas as pd
@@ -19,6 +20,7 @@ load_dotenv(dotenv_path=env_path, override=True)
 
 # Get the GITHUB_TOKEN from the .env file
 token = os.getenv('GITHUB_TOKEN')
+
 
 def fetch_repository_files(url, headers):
     """
@@ -41,15 +43,23 @@ def fetch_repository_files(url, headers):
         if response.status_code == 200:
             items = response.json()
             for item in items:
-                if item['type'] == 'file' and (item['name'].endswith('.py') or item['name'].endswith('.R') or item['name'].endswith('.cpp')):
+                if item['type'] == 'file' and (
+                    item['name'].endswith('.py') or
+                    item['name'].endswith('.R') or
+                    item['name'].endswith('.cpp')
+                ):
                     repo_files.append(item['download_url'])
                 elif item['type'] == 'dir':
                     get_files(item['url'])
         else:
-            print(f"Failed to fetch files from {api_url}: {response.status_code} - {response.text}")
+            print(
+                f"Failed to fetch files from {api_url}: "
+                f"{response.status_code} - {response.text}"
+            )
 
     get_files(api_url)
     return repo_files
+
 
 def check_comment_at_start(file_url, headers):
     """
@@ -68,17 +78,41 @@ def check_comment_at_start(file_url, headers):
         lines = content.split('\n')
         if len(lines) > 0:
             first_line = lines[0].strip()
-            if first_line.startswith('#') or first_line.startswith('//') or first_line.startswith('/*') or first_line.startswith("'''") or first_line.startswith('"'):
+            if (first_line.startswith('#') or
+                first_line.startswith('//') or
+                first_line.startswith('/*') or
+                first_line.startswith("'''") or
+                first_line.startswith('"') or
+                first_line.startswith("#'")
+                ):
                 return True
     else:
-        print(f"Failed to fetch file {file_url}: {response.status_code} - {response.text}")
+        print(
+            f"Failed to fetch file {file_url}: "
+            f"{response.status_code} - {response.text}"
+        )
     return False
 
+
 def analyze_repositories(input_csv):
+    """
+    Analyzes GitHub repositories for comments at the start of files.
+
+    Args:
+        input_csv (str): Input CSV file containing repository URLs i
+        n "html_url" column.
+
+    The function updates the input CSV file with two new columns:
+    'comment_percentage' - The percentage of files in the repository
+    that start with a comment.
+    'comment_category' - Categorical representation of 'comment_percentage'.
+    Can be 'none', 'some', 'more', or 'most'.
+    """
     headers = {'Authorization': f'token {token}'}
 
-    df = pd.read_csv(input_csv, sep=';', on_bad_lines='warn')
-    df = df[df['language'].isin(['Python', 'R', 'C++'])]  # Filter the DataFrame based on the 'language' column
+    df = pd.read_csv(input_csv, sep=',', on_bad_lines='warn')
+    # Filter the DataFrame based on the 'language' column
+    df = df[df['language'].isin(['Python', 'R', 'C++'])]
     total_repos = len(df)
 
     if 'comment_percentage' not in df.columns:
@@ -88,15 +122,15 @@ def analyze_repositories(input_csv):
 
     for index, row in df.iterrows():
         repo_url = row['html_url']
-        if pd.isna(row['comment_category']):
-            print(f"Skipping repository {index+1}/{total_repos}: {repo_url}")
-            continue  # Skip this row if 'comment_at_start' is NaN
 
         print(f"Processing repository {index+1}/{total_repos}: {repo_url}")
         try:
             repo_files = fetch_repository_files(repo_url, headers)
             total_files = len(repo_files)
-            commented_files = sum(check_comment_at_start(file_url, headers) for file_url in repo_files)
+            commented_files = sum(
+                check_comment_at_start(file_url, headers)
+                for file_url in repo_files
+            )
 
             if total_files > 0:
                 comment_percentage = (commented_files / total_files) * 100
@@ -120,9 +154,14 @@ def analyze_repositories(input_csv):
         except Exception as e:
             print(f"Error processing repository {repo_url}: {e}")
 
+
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Analyze GitHub repositories for comments at start of files.')
-    parser.add_argument('input_csv', help='Input CSV file containing repository URLs in "html_url" column')
+    desc = 'Analyze GitHub repositories for comments at start of files.'
+    parser = argparse.ArgumentParser(description=desc)
+    parser.add_argument(
+        'input_csv',
+        help='Input CSV file containing repository URLs in "html_url" column'
+    )
     args = parser.parse_args()
 
     analyze_repositories(args.input_csv)
