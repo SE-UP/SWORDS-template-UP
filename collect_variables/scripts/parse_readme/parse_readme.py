@@ -4,7 +4,6 @@ This file parses an input readme file for related FAIR variables.
 import re
 from datetime import datetime
 import argparse
-
 import pandas as pd
 
 
@@ -44,24 +43,32 @@ if __name__ == '__main__':
     print(
         f"Retrieving readme variables for the following file: {args.input}")
 
-
     df_repos = read_input_file(args.input)
     df_repos = df_repos.dropna()
     results = []
-for url, readme in zip(df_repos.get("html_url", pd.Series(index=df_repos.index)), df_repos.get("readme", pd.Series(index=df_repos.index))):
-    install_instruction = bool(re.search("install|docker", str(readme)))
-    usage_example = bool(re.search("usage|getting started|quick start|example|tutorial",
-                                   str(readme)))
-    contrib_guidelines = bool(re.search("contribut", str(readme)))
-    results.append([url, install_instruction, usage_example, contrib_guidelines])
-
+    for url, readme in zip(df_repos["html_url"], df_repos["readme"]):
+        install_instruction = bool(re.search("install|docker", readme))
+        usage_example = bool(
+            re.search(
+                "usage|getting started|quick start|example|tutorial", readme
+            )
+        )
+        contrib_guidelines = bool(re.search("contribut", readme))
+        results.append([
+            url,
+            install_instruction,
+            usage_example,
+            contrib_guidelines
+        ])
     print(results)
 
-    df_results = pd.DataFrame(results,
-                                columns=[
-                                    "html_url", "has_install_instruction",
-                                    "has_usage_examples", "has_contrib_guidelines"
-                                ])
+    df_results = pd.DataFrame(
+        results,
+        columns=[
+            "html_url", "has_install_instruction",
+            "has_usage_examples", "has_contrib_guidelines"
+        ]
+    )
 
     print(df_results["has_install_instruction"].value_counts())
     print(df_results["has_usage_examples"].value_counts())
@@ -72,5 +79,6 @@ for url, readme in zip(df_repos.get("html_url", pd.Series(index=df_repos.index))
     df_results.to_csv(args.output, index=False)
 
     print(
-        f"Successfully retrieved readme variables. Saved result to {args.output}."
+        f"Successfully retrieved readme variables.
+        Saved result to {args.output}."
     )
