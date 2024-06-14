@@ -27,7 +27,6 @@ def get_readme_content(github_url, api):
     # Parse the URL and unquote to handle URLs with special characters
     parsed_url = urlparse(unquote(github_url))
     path_parts = parsed_url.path.strip('/').split('/')
-    
     # Check if path_parts has at least two elements
     if len(path_parts) < 2:
         print(f"Invalid GitHub URL: {github_url}")
@@ -46,16 +45,24 @@ def get_readme_content(github_url, api):
                 # Check if the content attribute exists
                 if 'content' in content:
                     # Decode the content from base64
-                    readme_content = base64.b64decode(content.content).decode('utf-8')
+                    readme_content = base64.b64decode(content.content)
+                    readme_content = readme_content.decode('utf-8')
                     return readme_content
-                elif content.download_url:  # Check if download_url is not None
-                    # If the content attribute does not exist, download the file from the download_url
+                # Check if download_url is not None
+                elif content.download_url:
+                    # If the content attribute does not exist,
+                    # download the file from the download_url
                     try:
-                        response = requests.get(content.download_url, timeout=10)
+                        url = content.download_url
+                        timeout = 10
+                        response = requests.get(url, timeout=timeout)
                         response.raise_for_status()
                         return response.text
                     except requests.exceptions.Timeout:
-                        print(f"Timeout when trying to download {content.download_url}")
+                        print(
+                            f"Timeout when trying to download "
+                            f"{content.download_url}"
+                        )
                         return None
     except HTTP404NotFoundError:
         print(f"Could not find content for {github_url}")
@@ -64,13 +71,11 @@ def get_readme_content(github_url, api):
     print(f"No README found for {github_url}")
     return None
 
+
 def main():
-    """
-    Main function that accepts a CSV file path, reads the 'html_url' column, fetches the README content for each URL,
-    and saves the content to a new 'readme' column.
-    """
     # Set up command-line argument parsing
-    parser = argparse.ArgumentParser(description='Fetch and print the README content from a GitHub repository.')
+    description = 'Fetch and print the README content from repository.'
+    parser = argparse.ArgumentParser(description=description)
     parser.add_argument('csv_file', type=str, help='The CSV file path')
 
     args = parser.parse_args()
@@ -90,14 +95,33 @@ def main():
     # Initialize the GitHub API client with the token
     api = GhApi(token=token)
 
-    # Read the CSV file
-    df = pd.read_csv(args.csv_file)
+    # Define chunk size
+    chunksize = 100
 
-    # Fetch README content for each URL and save it to the 'readme' column
-    for i, row in df.iterrows():
-        df.at[i, 'readme'] = get_readme_content(row['html_url'], api)
-        # Save the DataFrame back to the CSV file after each row is processed
-        df.to_csv(args.csv_file, index=False)
+    # Create a list to store the chunks
+    chunks = []
+
+    # Read the CSV file in chunks
+    for chunk in pd.read_csv(args.csv_file, sep=';', chunksize=chunksize):
+        # Fetch README content for each URL and save it to the 'readme' column
+        for i, row in chunk.iterrows():
+            readme_content = get_readme_content(row['html_url'], api)
+            # Replace newline characters with a space
+            if readme_content:
+                readme_content = readme_content.replace('\n', ' ')
+            else:
+                readme_content = None
+            chunk.at[i, 'readme'] = readme_content
+
+        # Append the chunk to the list
+        chunks.append(chunk)
+
+    # Concatenate all chunks into a single DataFrame
+    df = pd.concat(chunks, ignore_index=True)
+
+    # Save the DataFrame to the CSV file
+    df.to_csv(args.csv_file, index=False)
+
 
 if __name__ == '__main__':
     main()
