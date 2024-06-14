@@ -1,3 +1,4 @@
+"""this program is test program to check the README file of the repository"""
 import argparse
 from dotenv import load_dotenv
 from ghapi.all import GhApi
@@ -29,7 +30,6 @@ def get_readme_content(github_url):
 
     # Initialize the GitHub API client with the token
     api = GhApi(token=token)
-    print
 
     # Parse the URL and unquote to handle URLs with special characters
     parsed_url = urlparse(unquote(github_url))
@@ -56,7 +56,8 @@ def main():
     Main function that accepts a GitHub repository URL and prints the README.md content.
     """
     # Set up command-line argument parsing
-    parser = argparse.ArgumentParser(description='Fetch and print the README content from a GitHub repository.')
+    description = 'Fetch and print the README content from a GitHub repository.'
+    parser = argparse.ArgumentParser(description=description)
     parser.add_argument('github_url', type=str, help='The GitHub repository URL')
 
     args = parser.parse_args()
