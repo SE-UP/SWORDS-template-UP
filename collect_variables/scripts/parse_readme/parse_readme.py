@@ -79,6 +79,6 @@ if __name__ == '__main__':
     df_results.to_csv(args.output, index=False)
 
     print(
-        f"Successfully retrieved readme variables.
-        Saved result to {args.output}."
+        "Successfully retrieved readme variables."
+        f"Saved result to {args.output}."
     )

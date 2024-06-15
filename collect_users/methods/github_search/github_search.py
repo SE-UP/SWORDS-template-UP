@@ -11,6 +11,7 @@ from fastcore.foundation import L
 from ghapi.all import GhApi, pages
 
 
+# pylint: disable=too-few-public-methods
 class Service:
     """
     Common variables used in functions bundled in Service class.
@@ -36,11 +37,12 @@ def get_complete_query_result(query, query_type, service: Service):
         DataFrame: A dataframe with the results of the query
     """
     # do first request to store last page variable in api object
+    query_result = []  # Initialize query_result as an empty list
     if query_type == "SEARCH_REPOS":
         service.api.search.repos(query, per_page=100)
         if service.api.last_page() > 0:
             query_result = pages(service.api.search.repos,
-                                 service.api.last_page(), query)
+                                service.api.last_page(), query)
         else:
             # if there is only one page, last_page() will return 0.
             # This will return nothing, so we need to use 1
@@ -49,14 +51,15 @@ def get_complete_query_result(query, query_type, service: Service):
         service.api.search.users(query, per_page=100)
         if service.api.last_page() > 0:
             query_result = pages(service.api.search.users,
-                                 service.api.last_page(), query)
+                                service.api.last_page(), query)
         else:
             # if there is only one page, last_page() will return 0.
             # This will return nothing, so we need to use 1
             query_result = pages(service.api.search.users, 1, query)
     result = L()
-    for page in query_result:
-        result.extend(page["items"])
+    if query_result is not None:
+        for page in query_result:
+            result.extend(page["items"])
     return result
 
 

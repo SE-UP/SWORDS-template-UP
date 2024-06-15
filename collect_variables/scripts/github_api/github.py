@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 from ghapi.all import GhApi, paged
 from fastcore.foundation import L
 
-
+# pylint: disable=R0903
 class Service:
     """
     Common variables used in functions bundled in Service class.
@@ -25,7 +25,7 @@ class Service:
         self.sleep = sleep
         self.file_list = None
 
-
+# pylint: disable=R0903
 class Repo:
     """
     Repository variables bundled together.
@@ -37,7 +37,10 @@ class Repo:
     branch (string): repository default branch. E.g.: main / master
     """
 
-    def __init__(self, repo_url, repo_owner, repo_repo_name, repo_branch="main"):
+    def __init__(
+            self, repo_url, repo_owner,
+            repo_repo_name, repo_branch="main"
+            ):
         self.url = repo_url
         self.owner = repo_owner
         self.repo_name = repo_repo_name
@@ -74,7 +77,8 @@ def export_file(variables_retrieved, columns, var_type, output):
     df_data["date"] = current_date
     df_data.to_csv(output, index=False)
     print(
-        f"Successfully retrieved {var_type} variables. Saved result to {output}."
+        f"Successfully retrieved {var_type} variables."
+        "Saved result to {output}."
     )
 
 
@@ -148,7 +152,8 @@ def get_file_locations(service: Service, repo: Repo, file_names):
     """Retrieves file locations of a file name search for a Github repository.
 
     Args:
-        service    (Service): Service object with API connection and metadata vars
+        service    (Service): Service object with API connection and
+        metadata vars
         repo       (Repo)   : Repository variables bundled together
         file_names (list)   : List of file names that should be searched.
                               Examples: ".ipynb", "CONTRIBUTING"
@@ -160,7 +165,10 @@ def get_file_locations(service: Service, repo: Repo, file_names):
     content = service.api.git.get_tree(owner=repo.owner, repo=repo.repo_name,
                                        tree_sha=repo.branch, recursive=1)
     for file in content["tree"]:
-        if any(file_name.lower() in file.path.lower() for file_name in file_names):
+        if any(
+            file_name.lower() in file.path.lower()
+            for file_name in file_names
+        ):
             file_names_entry = [repo.url, file["path"]]
             print(file_names_entry)
             result.append(file_names_entry)
@@ -178,9 +186,12 @@ def get_commit_variables(service: Service, repo: Repo):
 
     Returns:
         list: list with url and three variables:
-            correct version control usage (are there commits in the days after initial one?),
-            life span of the repository measured as days between first and last commit,
-            whether the repository is still active (was there a commit within the last 365 days?)
+            correct version control usage (are there commits in
+              the days after initial one?),
+            life span of the repository measured as days between
+              first and last commit,
+            whether the repository is still active (was there a
+              commit within the last 365 days?)
     """
     commit_pages = paged(service.api.repos.list_commits, owner=repo.owner,
                          repo=repo.repo_name, per_page=100)
@@ -188,13 +199,19 @@ def get_commit_variables(service: Service, repo: Repo):
     result = []
     for page in commit_pages:
         for commit in page:
-            commit_dates.append(datetime.strptime(commit["commit"]["author"]["date"],
-                                                  "%Y-%m-%dT%H:%M:%SZ"))
-            first_commit = commit # this will be the first commit after finishing the loops
-
+            commit_dates.append(
+                datetime.strptime(
+                    commit["commit"]["author"]["date"],
+                    "%Y-%m-%dT%H:%M:%SZ"
+                )
+            )
+            # this will be the first commit after finishing the loops
+            first_commit = commit
     vcs_usage = commit_dates[0].date() != commit_dates[-1].date()
     life_span = (commit_dates[0].date() - commit_dates[-1].date()).days
-    repo_active = (datetime.today().date() - commit_dates[0].date()) < timedelta(days=365)
+    current_date = datetime.today().date()
+    first_commit_date = commit_dates[0].date()
+    repo_active = (current_date - first_commit_date) < timedelta(days=365)
 
     # no valid GitHub user did the first commit
     if first_commit["author"] is None or len(first_commit["author"]) == 0:
@@ -211,8 +228,10 @@ def get_test_location(service: Service, repo: Repo):
     """Retrieves test folder locations for a Github repository.
 
     Args:
-        service    (Service): Service object with API connection and metadata vars
-        repo       (Repo)   : Repository variables bundled together
+        service    (Service): Service object with API
+        connection and metadata vars
+        repo       (Repo)   : Repository variables
+        bundled together
 
     Returns:
         list: test folder list retrieved from Github
@@ -225,7 +244,8 @@ def get_test_location(service: Service, repo: Repo):
             folder_names_entry = [repo.url, file["path"]]
             print(folder_names_entry)
             result.append(folder_names_entry)
-            # if there is one positive result we can conclude that there are tests
+            # if there is one positive result we can conclude that
+            # there are tests
             return result
     return result
 
@@ -245,16 +265,20 @@ def get_version_identifiability(service: Service, repo: Repo):
     Returns:
         list: repo url and compliance boolean
     """
-    tags = service.api.repos.list_tags(owner=repo.owner,
-                         repo=repo.repo_name, per_page=100)
+    tags = service.api.repos.list_tags(
+        owner=repo.owner,
+        repo=repo.repo_name,
+        per_page=100
+        )
     result = []
     version_identifiability = None
     if tags:
         for tag in tags:
             split = tag["name"].split(".")
-            if len(split) in [2,3]:
+            if len(split) in [2, 3]:
                 version_identifiability = True
-            else: # all versions must follow the scheme. If one is wrong, exit
+            # all versions must follow the scheme. If one is wrong, exit
+            else:
                 version_identifiability = False
                 break
         result.append([repo.url, version_identifiability])
@@ -268,56 +292,61 @@ def get_data_from_api(service: Service, repo: Repo, variable_type, verbose=True)
     Args:
         service (Service): Service object with API connection and metadata vars
         repo    (Repo)   : Repository variables bundled together
-        variable_type (string): which type of variable should be retrieved. Supported are:
-                                contributors, languages, readmes, files, commits, versions
+        variable_type (string): which type of variable should be retrieved.
+        Supported are:
+                                contributors, languages, readmes, files,
+                                commits, versions
         verbose (boolean): if True, retrieve all variables from API.
-            Otherwise, only collect username and contributions (only relevant for contributors)
+            Otherwise, only collect username and contributions (only relevant
+            for contributors)
     Returns:
         list: A list of the retrieved variables
     """
+    # Map variable_type to corresponding function
+    variable_type_to_function = {
+        "contributors": get_contributors,
+        "languages": get_languages,
+        "readmes": get_readmes,
+        "files": get_file_locations,
+        "tests": get_test_location,
+        "commits": get_commit_variables,
+        "versions": get_version_identifiability
+    }
     retrieved_variables = []
     request_successful = False
     while not request_successful:
         try:
-            if variable_type == "contributors":
-                retrieved_variables.extend(
-                    get_contributors(service, repo, verbose))
-            elif variable_type == "languages":
-                retrieved_variables.extend(get_languages(service, repo))
-            elif variable_type == "readmes":
-                retrieved_variables.extend(
-                    get_readmes(service, repo))
-            elif variable_type == "files":
-                retrieved_variables.extend(
-                    get_file_locations(service, repo, service.file_list))
-            elif variable_type == "tests":
-                retrieved_variables.extend(
-                    get_test_location(service, repo))
-            elif variable_type == "commits":
-                retrieved_variables.extend(
-                    get_commit_variables(service, repo))
-            elif variable_type == "versions":
-                retrieved_variables.extend(
-                    get_version_identifiability(service, repo))
-        except Exception as e:  # pylint: disable=broad-except
-            print(f"There was an error for repository {repo.url} : {e}")
+            # Get the function based on variable_type
+            function = variable_type_to_function.get(variable_type)
+            if function:
+                if variable_type == "files":
+                    retrieved_variables.extend(function(service, repo, service.file_list))
+                elif variable_type == "contributors":
+                    retrieved_variables.extend(function(service, repo, verbose))
+                else:
+                    retrieved_variables.extend(function(service, repo))
+        # pylint: disable=broad-except
+        except Exception as error:
+            print(f"There was an error for repository {repo.url} : {error}")
             # (non-existing repo)
-            if any(status_code in str(e) for status_code in ["204", "404"]):
+            if any(status_code in str(error) for status_code in ["204", "404"]):
                 print(f"Repository does not exist: {repo.url}")
-            elif "403" in str(e):  # timeout
+            elif "403" in str(error):  # timeout
                 # this does not use time until token refresh as sleep time
                 # due to the issue described in the print
-                print("Github seems to have issues with users that are accessing API data from"
-                      " an organization they are part of. It is not possible to distinguish"
-                      " between this error and a timeout issue. In case this is an issue for"
-                      " you, you can create a new Github account and generate a new token.")
+                print(
+                    "Github seems to have issues with users that are accessing APIdata from"
+                    " an organization they are part of. It is not possible to distinguish"
+                    " between this error and a timeout issue. In case this is an issue for"
+                    " you, you can create a new Github account and generate a new token."
+                )
                 print("Sleep for a while.")
                 for _ in range(100):
                     time.sleep(6)
                     continue
             else:
                 print(
-                    f"Unhandled status code: {e} - skip repository"
+                    f"Unhandled status code: {error} - skip repository"
                 )
             time.sleep(service.sleep)
             return None
@@ -438,14 +467,13 @@ if __name__ == '__main__':
     print(
         f"Retrieving howfairis variables for the following file: {args.input}")
     print(f"Retrieving contributors? {args.contributors}"
-          f"\nRetrieving languages? {args.languages}"
-          f"\nRetrieving topics? {args.topics}"
-          f"\nRetrieving readmes? {args.readmes}"
-          f"\nRetrieving file locations for the following files: {args.files}"
-          f"\nRetrieving test locations? {args.tests}"
-          f"\nRetrieving commit variables? {args.commits}"
-          f"\nRetrieving version variable? {args.versions}")
-
+        f"\nRetrieving languages? {args.languages}"
+        f"\nRetrieving topics? {args.topics}"
+        f"\nRetrieving readmes? {args.readmes}"
+        f"\nRetrieving file locations for the following files: {args.files}"
+        f"\nRetrieving test locations? {args.tests}"
+        f"\nRetrieving commit variables? {args.commits}"
+        f"\nRetrieving version variable? {args.versions}")
     df_repos = read_input_file(args.input)
 
     if args.contributors:

@@ -66,15 +66,15 @@ def parse_repo(repo_url):
             time.sleep(1)
             request_successful = True
             return entry
-        except Exception as e: # pylint: disable=broad-except
+        except Exception as error: # pylint: disable=broad-except
             print(f"Error occured for {repo_url} (most likely timeout issue due"
-                f" to API limitation. Sleep for a while. Error message: {e}")
+                f" to API limitation. Sleep for a while. Error message: {error}")
             if "Something went wrong asking the repo for its default branch" in str(
-                    e): # repo might be deleted
+                    error): # repo might be deleted
                 print("Skipping repository...")
                 request_successful = True  # skip this repo
                 return None
-            if "TimeoutError" in str(e):
+            if "TimeoutError" in str(error):
                 time.sleep(5)
             else:
                 sleep_time = api.rate_limit.get()["rate"]["reset"] - int(time.time())
