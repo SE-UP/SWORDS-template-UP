@@ -26,7 +26,7 @@ print(f"Token: {token}")
 print(f"Username: {username}")
 
 # Use the token to create a Github instance
-g = Github(token)
+github_instance = Github(token)
 
 
 def check_test_folder(repo):
@@ -47,8 +47,8 @@ def check_test_folder(repo):
                     content.name.lower() in ["test", "tests"]:
                 return True
         return False
-    except GithubException as e:
-        print(f"Error accessing repository: {e}")
+    except GithubException as github_exception:
+        print(f"Error accessing repository: {github_exception}")
         return False
 
 
@@ -60,33 +60,33 @@ def main(csv_file):
     Parameters:
     csv_file (str): The path to the CSV file.
     """
-    df = pd.read_csv(csv_file, sep=';', on_bad_lines='warn')
-    if 'test_folder' not in df.columns:
-        df['test_folder'] = False
+    data_frame = pd.read_csv(csv_file, sep=';', on_bad_lines='warn')
+    if 'test_folder' not in data_frame.columns:
+        data_frame['test_folder'] = False
 
     count = 0
-    for url in df['html_url']:
+    for url in data_frame['html_url']:
         if pd.isna(url):
             print("Skipping row with missing URL")
             continue
         print(f"Working on repository: {url}")
         repo_name = url.split('https://github.com/')[-1]
         try:
-            repo = g.get_repo(repo_name)
-            df.loc[df['html_url'] == url, 'test_folder'] = \
+            repo = github_instance.get_repo(repo_name)
+            data_frame.loc[data_frame['html_url'] == url, 'test_folder'] = \
                 check_test_folder(repo)
             count += 1
             print(f"Repositories completed: {count}")
-        except GithubException as e:
-            print(f"Error accessing repository {repo_name}: {e}")
+        except GithubException as github_exception:
+            print(f"Error accessing repository {repo_name}: {github_exception}")
             continue
 
-    df.to_csv(csv_file, index=False)
+    data_frame.to_csv(csv_file, index=False)
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
+    argument_parser = argparse.ArgumentParser(
         description='Check for test folders in GitHub repositories.')
-    parser.add_argument('csv_file', type=str, help='Input CSV file')
-    args = parser.parse_args()
-    main(args.csv_file)
+    argument_parser.add_argument('csv_file', type=str, help='Input CSV file')
+    arguments = argument_parser.parse_args()
+    main(arguments.csv_file)

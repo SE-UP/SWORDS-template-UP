@@ -3,10 +3,10 @@ This program checks the presence of comments at the start of
 source code files in GitHub repositories.
 '''
 import os
-import pandas as pd
-import requests
 import argparse
 from urllib.parse import urlparse
+import pandas as pd
+import requests
 from dotenv import load_dotenv
 
 # Get the directory of the current script
@@ -21,6 +21,7 @@ load_dotenv(dotenv_path=env_path, override=True)
 # Get the GITHUB_TOKEN from the .env file
 token = os.getenv('GITHUB_TOKEN')
 
+REQUEST_TIMEOUT = 10  # Timeout for requests.get in seconds
 
 def fetch_repository_files(url, headers):
     """
@@ -39,7 +40,7 @@ def fetch_repository_files(url, headers):
     api_url = f'https://api.github.com/repos/{owner}/{repo}/contents'
 
     def get_files(api_url):
-        response = requests.get(api_url, headers=headers)
+        response = requests.get(api_url, headers=headers, timeout=REQUEST_TIMEOUT)
         if response.status_code == 200:
             items = response.json()
             for item in items:
@@ -72,19 +73,14 @@ def check_comment_at_start(file_url, headers):
     Returns:
         bool: True if the file has a comment at the start, False otherwise.
     """
-    response = requests.get(file_url, headers=headers)
+    response = requests.get(file_url, headers=headers, timeout=REQUEST_TIMEOUT)
     if response.status_code == 200:
         content = response.text
         lines = content.split('\n')
         if len(lines) > 0:
             first_line = lines[0].strip()
-            if (first_line.startswith('#') or
-                first_line.startswith('//') or
-                first_line.startswith('/*') or
-                first_line.startswith("'''") or
-                first_line.startswith('"') or
-                first_line.startswith("#'")
-                ):
+            prefixes = ['#', '//', '/*', "'''", '"', "#'"]
+            if any(first_line.startswith(prefix) for prefix in prefixes):
                 return True
     else:
         print(
@@ -109,9 +105,10 @@ def analyze_repositories(input_csv):
     Can be 'none', 'some', 'more', or 'most'.
     """
     headers = {'Authorization': f'token {token}'}
-
+    # pylint: disable=invalid-name
     df = pd.read_csv(input_csv, sep=',', on_bad_lines='warn')
     # Filter the DataFrame based on the 'language' column
+    # pylint: disable=invalid-name
     df = df[df['language'].isin(['Python', 'R', 'C++'])]
     total_repos = len(df)
 
@@ -151,13 +148,14 @@ def analyze_repositories(input_csv):
 
             # Save the record as soon as it is fetched
             df.to_csv(input_csv, index=False)
-        except Exception as e:
-            print(f"Error processing repository {repo_url}: {e}")
+        # pylint: disable=broad-except
+        except Exception as error:
+            print(f"Error processing repository {repo_url}: {error}")
 
 
 if __name__ == '__main__':
-    desc = 'Analyze GitHub repositories for comments at start of files.'
-    parser = argparse.ArgumentParser(description=desc)
+    DESC = 'Analyze GitHub repositories for comments at start of files.'
+    parser = argparse.ArgumentParser(description=DESC)
     parser.add_argument(
         'input_csv',
         help='Input CSV file containing repository URLs in "html_url" column'

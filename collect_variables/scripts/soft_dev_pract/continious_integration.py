@@ -8,8 +8,8 @@ to access the repositories and updates the CSV file with the results.
 
 import argparse
 import os
-import pandas as pd
 import time
+import pandas as pd
 from github import Github, GithubException, RateLimitExceededException
 from dotenv import load_dotenv
 
@@ -33,6 +33,15 @@ g = Github(token)
 
 
 def check_github_actions(repo):
+    """
+    Check if a GitHub repository has implemented GitHub Actions.
+
+    Parameters:
+    repo (github.Repository.Repository): The GitHub repository to check.
+
+    Returns:
+    str: 'github_actions' if '.github/workflows' directory is found, None otherwise.
+    """
     try:
         contents = repo.get_contents("")
         for content in contents:
@@ -43,8 +52,8 @@ def check_github_actions(repo):
                             github_content.name == "workflows"):
                         return 'github_actions'
         return None
-    except GithubException as e:
-        print(f"Error accessing repository: {e}")
+    except GithubException as github_exception:
+        print(f"Error accessing repository: {github_exception}")
         return None
 
 
@@ -56,13 +65,13 @@ def check_travis(repo):
     repo (github.Repository.Repository): The GitHub repository to check.
 
     Returns:
-    bool: True if '.travis.yml' file is found, False otherwise.
+    str: 'travis' if '.travis.yml' file is found, None otherwise.
     """
     try:
         repo.get_contents(".travis.yml")
         return 'travis'
-    except GithubException as e:
-        print(f"Error accessing repository: {e}")
+    except GithubException as github_exception:
+        print(f"Error accessing repository: {github_exception}")
         return None
 
 
@@ -74,13 +83,13 @@ def check_circleci(repo):
     repo (github.Repository.Repository): The GitHub repository to check.
 
     Returns:
-    bool: True if '.circleci/config.yml' file is found, False otherwise.
+    str: 'circleci' if '.circleci/config.yml' file is found, None otherwise.
     """
     try:
         repo.get_contents(".circleci/config.yml")
         return 'circleci'
-    except GithubException as e:
-        print(f"Error accessing repository: {e}")
+    except GithubException as github_exception:
+        print(f"Error accessing repository: {github_exception}")
         return None
 
 
@@ -92,13 +101,13 @@ def check_jenkins(repo):
     repo (github.Repository.Repository): The GitHub repository to check.
 
     Returns:
-    bool: True if 'Jenkinsfile' is found, False otherwise.
+    str: 'jenkins' if 'Jenkinsfile' is found, None otherwise.
     """
     try:
         repo.get_contents("Jenkinsfile")
         return 'jenkins'
-    except GithubException as e:
-        print(f"Error accessing repository: {e}")
+    except GithubException as github_exception:
+        print(f"Error accessing repository: {github_exception}")
         return None
 
 
@@ -110,33 +119,39 @@ def check_azure_pipelines(repo):
     repo (github.Repository.Repository): The GitHub repository to check.
 
     Returns:
-    bool: True if 'azure-pipelines.yml' file is found, False otherwise.
+    str: 'azure_pipelines' if 'azure-pipelines.yml' file is found, None otherwise.
     """
     try:
         repo.get_contents("azure-pipelines.yml")
         return 'azure_pipelines'
-    except GithubException as e:
-        print(f"Error accessing repository: {e}")
+    except GithubException as github_exception:
+        print(f"Error accessing repository: {github_exception}")
         return None
 
 
-def main(csv_file):
-    df = pd.read_csv(csv_file, sep=';', on_bad_lines='warn')
-    if 'continuous_integration' not in df.columns:
-        df['continuous_integration'] = False
-    if 'ci_tool' not in df.columns:
-        df['ci_tool'] = None
+def main(input_csv_file):
+    """
+    Main function to check for continuous integration tools in GitHub repositories.
 
-        ci_checks = [
-            check_github_actions,
-            check_travis,
-            check_circleci,
-            check_jenkins,
-            check_azure_pipelines
-        ]
+    Parameters:
+    input_csv_file (str): Path to the input CSV file.
+    """
+    data_frame = pd.read_csv(input_csv_file, sep=';', on_bad_lines='warn')
+    if 'continuous_integration' not in data_frame.columns:
+        data_frame['continuous_integration'] = False
+    if 'ci_tool' not in data_frame.columns:
+        data_frame['ci_tool'] = None
+
+    ci_checks = [
+        check_github_actions,
+        check_travis,
+        check_circleci,
+        check_jenkins,
+        check_azure_pipelines
+    ]
 
     count = 0
-    for index, row in df.iterrows():
+    for index, row in data_frame.iterrows():
         url = row['html_url']
         if pd.isna(url):
             print("Skipping row with missing URL")
@@ -148,28 +163,28 @@ def main(csv_file):
             for ci_check in ci_checks:
                 ci_tool = ci_check(repo)
                 if ci_tool is not None:
-                    df.loc[index, 'continuous_integration'] = True
-                    df.loc[index, 'ci_tool'] = ci_tool
+                    data_frame.loc[index, 'continuous_integration'] = True
+                    data_frame.loc[index, 'ci_tool'] = ci_tool
                     break
             count += 1
             print(f"Repositories completed: {count}")
             # Save to CSV after each repository is checked
-            df.to_csv(csv_file, index=False)
-        except RateLimitExceededException as e:
+            data_frame.to_csv(input_csv_file, index=False)
+        except RateLimitExceededException:
             print("Rate limit exceeded. Sleeping until reset...")
             reset_time = g.rate_limiting_resettime
             sleep_time = reset_time - int(time.time())
             if sleep_time > 0:
                 time.sleep(sleep_time)
             continue
-        except GithubException as e:
-            print(f"Error accessing repository {repo_name}: {e}")
+        except GithubException as github_exception:
+            print(f"Error accessing repository {repo_name}: {github_exception}")
             continue
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
+    argument_parser = argparse.ArgumentParser(
         description='Check for GitHub Actions in GitHub repositories.')
-    parser.add_argument('csv_file', type=str, help='Input CSV file')
-    args = parser.parse_args()
-    main(args.csv_file)
+    argument_parser.add_argument('csv_file', type=str, help='Input CSV file')
+    arguments = argument_parser.parse_args()
+    main(arguments.csv_file)
