@@ -17,8 +17,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt
-    - name: Install pylint
-      run: pip install pylint
+        pip install pylint
     - name: Analysing the code with pylint
-      run: pylint $(find . -name "*.py" | xargs)
+      run: |
+        pylint $(find . -name "*.py" | xargs)
