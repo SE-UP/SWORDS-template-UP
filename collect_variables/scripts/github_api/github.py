@@ -481,6 +481,7 @@ if __name__ == '__main__':
         data = serv.api.repos.list_contributors("kequach", "HTML-Examples")
         if isinstance(data, L):
             column_headers = list(data[0].keys())
+            # pylint: disable=E0606
             all_column_headers = ["html_url_repository"] + column_headers
             time.sleep(serv.sleep)
         else:

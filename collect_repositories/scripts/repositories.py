@@ -11,7 +11,7 @@ from fastcore.foundation import L, AttrDict
 import pandas as pd
 from dotenv import load_dotenv
 
-
+# pylint: disable=too-few-public-methods
 class Service:
     """
     Common variables used in functions bundled in Service class.
