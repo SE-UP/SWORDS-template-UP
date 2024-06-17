@@ -520,9 +520,6 @@ valid-classmethod-first-arg=cls
 # List of valid names for the first argument in a metaclass class method.
 valid-metaclass-classmethod-first-arg=cls
 
-
-[DESIGN]
-
 [DESIGN]
 
 # List of regular expressions of class ancestor names to ignore when counting
