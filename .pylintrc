@@ -523,6 +523,8 @@ valid-metaclass-classmethod-first-arg=cls
 
 [DESIGN]
 
+[DESIGN]
+
 # List of regular expressions of class ancestor names to ignore when counting
 # public methods (see R0903)
 exclude-too-few-public-methods=
@@ -560,6 +562,9 @@ max-statements=50
 
 # Minimum number of public methods for a class (see R0903).
 min-public-methods=0
+
+# List of exceptions that are an acceptable base class.
+overgeneral-exceptions=builtins.BaseException,builtins.Exception
 
 
 [EXCEPTIONS]

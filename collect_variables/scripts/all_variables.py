@@ -14,7 +14,7 @@ from github_api.github import get_data_from_api, read_input_file, Service, Repo
 from howfairis_api.howfairis_variables import parse_repo
 
 
-def add_data_from_api(service, repo, variable_type, keys):
+def add_data_from_api(service, repo, variable_type, keys, data):
     """Retrieves Github API data. Utilizes the function from
     github_api/github.py to do so.
     This function adds the retrieved variables directly to the data dictionary.
@@ -25,6 +25,7 @@ def add_data_from_api(service, repo, variable_type, keys):
         variable_type (string): which type of variable should be retrieved.
                                 Supported are: contributors, languages, readmes
         keys (list): A list of the keys for the retrieved data
+        data (dict): The data dictionary to which the retrieved data is added
     Returns:
         boolean: Whether the request was successful or not.
         In case of unsuccessful request, skip repository
@@ -117,7 +118,8 @@ if __name__ == '__main__':
             serv,
             repository,
             "contributors",
-            contrib_keys
+            contrib_keys,
+            data
         )
         if REQUEST_SUCCESSFUL:
             howfairis_values = parse_repo(url)

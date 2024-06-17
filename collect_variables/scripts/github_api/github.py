@@ -482,7 +482,7 @@ if __name__ == '__main__':
         if isinstance(data, L):
             column_headers = list(data[0].keys())
             # pylint: disable=E0606
-            all_column_headers = ["html_url_repository"] + column_headers
+            all_column_headers = ["html_url_repository"] + column_headers # pylint: disable=possibly-used-before-assignment
             time.sleep(serv.sleep)
         else:
             print("There was an error retrieving column names.")

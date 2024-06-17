@@ -18,7 +18,8 @@ import re
 import time
 import argparse
 import pandas as pd
-from github import Github, GithubException, RateLimitExceededException # pylint: disable=unused-import
+ # pylint: disable=unused-import
+from github import Github, GithubException, RateLimitExceededException
 from dotenv import load_dotenv
 
 # Get the directory of the current script
