@@ -14,23 +14,24 @@ from github_api.github import get_data_from_api, read_input_file, Service, Repo
 from howfairis_api.howfairis_variables import parse_repo
 
 
-def add_data_from_api(service, repo, variable_type, keys, data):
-    """Retrieves Github API data. Utilizes the function from
-    github_api/github.py to do so.
-    This function adds the retrieved variables directly to the data dictionary.
-
-    Args:
-        service (Service): Service object with API connection and metadata vars
-        repo    (Repo)   : Repository variables bundled together
-        variable_type (string): which type of variable should be retrieved.
-                                Supported are: contributors, languages, readmes
-        keys (list): A list of the keys for the retrieved data
-        data (dict): The data dictionary to which the retrieved data is added
-    Returns:
-        boolean: Whether the request was successful or not.
-        In case of unsuccessful request, skip repository
+def add_data_from_api(service, repo, variable_type, keys, data_dict=None):
     """
-    # for nested data only, otherwise key can be directly used
+    This function retrieves data from the GitHub API and adds it to the data dictionary.
+
+    Parameters:
+    service (Service): The service object for the GitHub API.
+    repo (Repo): The repository object for which data is being retrieved.
+    variable_type (str): The type of data being retrieved. Can be "contributors",
+    "languages", or "readmes".
+    keys (list): The keys to use for the data dictionary.
+    data (dict, optional): The data dictionary to which data is being added. Defaults to None.
+
+    Returns:
+    bool: True if data retrieval was successful, False otherwise.
+    dict: The updated data dictionary.
+    """
+    if data_dict is None:
+        data_dict = {}
     if variable_type in ("contributors", "languages"):
         data[variable_type] = []
     retrieved_data = get_data_from_api(
@@ -43,19 +44,17 @@ def add_data_from_api(service, repo, variable_type, keys, data):
         elif variable_type == "readmes":
             data[keys[0]] = retrieved_data[1]
     else:
-        return False
+        return False, data
     time.sleep(2)
-    return True
+    return True, data
 
 
 if __name__ == '__main__':
     load_dotenv()
     token = os.getenv('GITHUB_TOKEN')
     serv = Service(api=GhApi(token=token))
-    # Initiate the parser
     parser = argparse.ArgumentParser()
 
-    # Add arguments to be parsed
     parser.add_argument(
         "--input",
         "-i",
@@ -68,7 +67,6 @@ if __name__ == '__main__':
                         help="The file name of the output.",
                         default="results/all_variables.json")
 
-    # Read arguments from the command line
     args = parser.parse_args()
     df_repos = read_input_file(args.input)
 
@@ -93,9 +91,7 @@ if __name__ == '__main__':
         ]
         data = dict(zip(general_keys, general_values))
 
-        # remove topics from index slice to not have topics twice
         row.drop(labels="topics", inplace=True)
-        # add all Github data after the API links
         data.update(row[54:78].items())
 
         contrib_keys = ["contributor", "contributions"]
@@ -114,7 +110,7 @@ if __name__ == '__main__':
                           repo_repo_name=repo_name,
                           repo_branch=branch)
 
-        REQUEST_SUCCESSFUL = add_data_from_api(
+        REQUEST_SUCCESSFUL, data = add_data_from_api(
             serv,
             repository,
             "contributors",
@@ -126,8 +122,8 @@ if __name__ == '__main__':
             data["howfairis"] = dict(zip(howfairis_keys, howfairis_values[1:]))
             topics = ast.literal_eval(topics_str)
             data["topics"] = topics
-            add_data_from_api(serv, repository, "languages", lang_keys)
-            add_data_from_api(serv, repository, "readmes", readme_key)
+            _, data = add_data_from_api(serv, repository, "languages", lang_keys, data)
+            _, data = add_data_from_api(serv, repository, "readmes", readme_key, data)
             print(data)
 
             with open(args.output, "a", encoding="utf8") as fp:
@@ -141,3 +137,4 @@ if __name__ == '__main__':
             )
         if counter % 10 == 0:
             print(f"Parsed {counter} out of {len(df_repos.index)} repos.")
+            

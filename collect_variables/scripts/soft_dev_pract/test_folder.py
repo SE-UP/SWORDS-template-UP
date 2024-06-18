@@ -1,13 +1,12 @@
 """
-This script checks for the presence of 'test' or 'tests' folders in the root
-directory of GitHub repositories listed in a CSV file. It uses the GitHub API
-to access the repositories and updates the CSV file with the results.
+Checks test' or 'tests' directories at the root level of GitHub
+repositories specified in a CSV file.
 """
 
 import argparse
 import os
 import pandas as pd
-from github import Github, GithubException
+from github import Github, GithubException # pylint: disable=E0611
 from dotenv import load_dotenv
 
 # Get the directory of the current script

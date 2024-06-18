@@ -18,7 +18,7 @@ import re
 import time
 import argparse
 import pandas as pd
- # pylint: disable=unused-import
+# pylint: disable=E0611
 from github import Github, GithubException, RateLimitExceededException
 from dotenv import load_dotenv
 

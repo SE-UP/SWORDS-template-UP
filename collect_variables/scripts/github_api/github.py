@@ -496,9 +496,9 @@ if __name__ == '__main__':
                 contributors_variables.extend(retrieved_data)
             if counter % 10 == 0:
                 print(f"Parsed {counter} out of {len(df_repos.index)} repos.")
-
-        export_file(contributors_variables, all_column_headers, "contributor",
-                    args.contributors_output)
+        if all_column_headers is not None:  # Check all_column_headers is not None before using it
+            export_file(contributors_variables, all_column_headers, "contributor",
+                        args.contributors_output)
 
     if args.languages:
         # get languages
