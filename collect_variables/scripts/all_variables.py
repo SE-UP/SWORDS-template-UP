@@ -10,6 +10,7 @@ import simplejson as json
 from dotenv import load_dotenv
 from ghapi.all import GhApi
 
+
 from github_api.github import get_data_from_api, read_input_file, Service, Repo
 from howfairis_api.howfairis_variables import parse_repo
 
