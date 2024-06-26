@@ -1,5 +1,15 @@
+This folder contains Software Developement practices followed 
+1. Presence of test folder
+2. If continious integrations is implemented 
+3. Additional rules for CI (Need to modify the program to incliude linter rules in LinterName.yml file)
+4. Brief comment at the start of the program (Works for Python, R, C++). 
+
+
+
+
+
 test_folder.py - checks if the folder named test or tests is present in the root directory of github repository or not. 
-to run the test_folder.py use the following command in the collect_varibales 
+to run the test_folder.py use the following command in thlse collect_varibales 
  python3 scripts/soft_dev_pract/test_folder.py results/user_research_repos_test.csv
 
 continious_integration.py - checks if the github_actions is implemented or not is present in the root directory of github repository or not. 
