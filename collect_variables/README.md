@@ -46,6 +46,74 @@ python scripts/howfairis_api/howfairis_variables.py --input ../collect_repositor
 python scripts/howfairis_api/howfairis_variables.py --input ../collect_repositories/results/repositories_filtered_2021-11-04.csv --output results/howfairis_duplicate
 ```
 
+### Gather variables on Software development practices
+In this step we gather (some) software development practices variables from [Best Practices for scientific computing](https://journals.plos.org/plosbiology/article?id=10.1371/journal.pbio.1001745) and [Good enough practices for scientific computing](https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1005510). Which could be accessed via github api. 
+For example we analsed variables like 
+1. Consistency in code style and formatting accessed if the linters are enforced in continious intergration. 
+2. If build tools are used to automate workflows 
+3. Make incremental changes (Need to evaluate manually)
+4. How can we modularise and re-use the code
+5. Assertions and unit-testing, symbolic debugger? 
+6.  Use profilers 
+7. Refactor, document 
+8. pre-merge code reviews 
+
+[Best Practices for scientific computing](https://journals.plos.org/plosbiology/article?id=10.1371/journal.pbio.1001745)
+
+1. Test Folder
+In this step, **test_folder.py** checks if a folder named test or tests is present in the root directory of a GitHub repository. To run test_folder.py, use the following commands. There are 2 arguments that can be passed.
+
+- `--input`: The file name of the repositories.  Default value: `../collect_repositories/results/repositories_filtered.csv`
+- `--output`: The file name of the output.
+Navigate to the folder and execute the script. Adjust parameters as needed. Example:
+
+```
+python3 scripts/soft_dev_pract/test_folder.py
+python3 scripts/soft_dev_pract/test_folder.py --input results/user_research_repos_test.csv
+python3 scripts/soft_dev_pract/test_folder.py --input results/user_research_repos_test.csv --output results/soft_dev_pract.csv
+```
+
+2. Continuous Integration
+In this step, **continuous_integration.py** checks if GitHub Actions is implemented in the root directory of a GitHub repository. To run continuous_integration.py, use the following commands. There are 2 arguments that can be passed.
+
+- `--input`: The file name of the repositories.  Default value: `../collect_repositories/results/repositories_filtered.csv`
+- `--output`: The file name of the output.
+Navigate to the folder and execute the script. Adjust parameters as needed. Example:
+
+```
+python3 scripts/soft_dev_pract/continuous_integration.py
+python3 scripts/soft_dev_pract/continuous_integration.py --input results/user_research_repos_test.csv
+python3 scripts/soft_dev_pract/continuous_integration.py --input results/user_research_repos_test.csv --output results/ci_check.csv
+```
+
+3. Additional CI Rules
+In this step, **add_ci_rules.py** checks if additional rules for linters and testing for languages Python, R, and C++ are present in the YAML or YML file. To run add_ci_rules.py, use the following commands. There are 2 arguments that can be passed.
+
+- `--input`: The file name of the repositories.  Default value: `../collect_repositories/results/repositories_filtered.csv`
+- `--output`: The file name of the output.
+Navigate to the folder and execute the script. Adjust parameters as needed. Example:
+
+```
+python3 scripts/soft_dev_pract/add_ci_rules.py
+python3 scripts/soft_dev_pract/add_ci_rules.py --input results/user_research_repos_test.csv
+python3 scripts/soft_dev_pract/add_ci_rules.py --input results/user_research_repos_test.csv --output results/ci_rules_check.csv
+```
+
+4. Brief Comment at Start of (program/script)
+In this step, **comment_at_start.py** checks the presence of comments at the start of source code files in GitHub repositories. To run comment_at_start.py, use the following commands. There are 2 arguments that can be passed.
+
+- `--input`: The file name of the repositories.  Default value: `../collect_repositories/results/repositories_filtered.csv`
+- `--output`: The file name of the output.
+Navigate to the folder and execute the script. Adjust parameters as needed. Example:
+
+```
+python3 scripts/soft_dev_pract/comment_at_start.py
+python3 scripts/soft_dev_pract/comment_at_start.py --input results/final_data_publish.csv
+python3 scripts/soft_dev_pract/comment_at_start.py --input results/final_data_publish.csv --output results/comment_check.csv
+```
+
+5. 
+
 ### Gather GitHub variables as tidy data
 
 In this step, additional variables from repositories are retrieved. These include information about contributors, used languages, file paths, readme content and topics in tidy data format. To do this, execute the file **github.py**.
