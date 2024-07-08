@@ -64,55 +64,67 @@ For example we analsed variables like
 In this step, **test_folder.py** checks if a folder named test or tests is present in the root directory of a GitHub repository. To run test_folder.py, use the following commands. There are 2 arguments that can be passed.
 
 - `--input`: The file name of the repositories.  Default value: `../collect_repositories/results/repositories_filtered.csv`
-- `--output`: The file name of the output.
+- `--output`: The file name of the output. Default value: `results/soft_dev_pract.csv`
 Navigate to the folder and execute the script. Adjust parameters as needed. Example:
 
 ```
 python3 scripts/soft_dev_pract/test_folder.py
-python3 scripts/soft_dev_pract/test_folder.py --input results/user_research_repos_test.csv
-python3 scripts/soft_dev_pract/test_folder.py --input results/user_research_repos_test.csv --output results/soft_dev_pract.csv
+python3 scripts/soft_dev_pract/test_folder.py --input ../collect_repositories/results/repositories_filtered.csv
+python3 scripts/soft_dev_pract/test_folder.py --input ../collect_repositories/results/repositories_filtered.csv --output results/soft_dev_pract.csv
 ```
 
 2. Continuous Integration
 In this step, **continuous_integration.py** checks if GitHub Actions is implemented in the root directory of a GitHub repository. To run continuous_integration.py, use the following commands. There are 2 arguments that can be passed.
 
 - `--input`: The file name of the repositories.  Default value: `../collect_repositories/results/repositories_filtered.csv`
-- `--output`: The file name of the output.
+- `--output`: The file name of the output. Default value: `results/soft_dev_pract.csv`
 Navigate to the folder and execute the script. Adjust parameters as needed. Example:
 
 ```
 python3 scripts/soft_dev_pract/continuous_integration.py
-python3 scripts/soft_dev_pract/continuous_integration.py --input results/user_research_repos_test.csv
-python3 scripts/soft_dev_pract/continuous_integration.py --input results/user_research_repos_test.csv --output results/ci_check.csv
+python3 scripts/soft_dev_pract/continuous_integration.py --input ../collect_repositories/results/repositories_filtered.csv
+python3 scripts/soft_dev_pract/continuous_integration.py --input ../collect_repositories/results/repositories_filtered.csv --output results/soft_dev_pract.csv
 ```
 
 3. Additional CI Rules
 In this step, **add_ci_rules.py** checks if additional rules for linters and testing for languages Python, R, and C++ are present in the YAML or YML file. To run add_ci_rules.py, use the following commands. There are 2 arguments that can be passed.
 
 - `--input`: The file name of the repositories.  Default value: `../collect_repositories/results/repositories_filtered.csv`
-- `--output`: The file name of the output.
+- `--output`: The file name of the output. Default value: `results/soft_dev_pract.csv`
 Navigate to the folder and execute the script. Adjust parameters as needed. Example:
 
 ```
 python3 scripts/soft_dev_pract/add_ci_rules.py
-python3 scripts/soft_dev_pract/add_ci_rules.py --input results/user_research_repos_test.csv
-python3 scripts/soft_dev_pract/add_ci_rules.py --input results/user_research_repos_test.csv --output results/ci_rules_check.csv
+python3 scripts/soft_dev_pract/add_ci_rules.py --input ../collect_repositories/results/repositories_filtered.csv
+python3 scripts/soft_dev_pract/add_ci_rules.py --input ../collect_repositories/results/repositories_filtered.csv --output results/soft_dev_pract.csv
 ```
 
 4. Brief Comment at Start of (program/script)
 In this step, **comment_at_start.py** checks the presence of comments at the start of source code files in GitHub repositories. To run comment_at_start.py, use the following commands. There are 2 arguments that can be passed.
 
 - `--input`: The file name of the repositories.  Default value: `../collect_repositories/results/repositories_filtered.csv`
-- `--output`: The file name of the output.
+- `--output`: The file name of the output. Default value: `results/soft_dev_pract.csv`
 Navigate to the folder and execute the script. Adjust parameters as needed. Example:
 
 ```
 python3 scripts/soft_dev_pract/comment_at_start.py
-python3 scripts/soft_dev_pract/comment_at_start.py --input results/final_data_publish.csv
-python3 scripts/soft_dev_pract/comment_at_start.py --input results/final_data_publish.csv --output results/comment_check.csv
+python3 scripts/soft_dev_pract/comment_at_start.py --input ../collect_repositories/results/repositories_filtered.csv
+python3 scripts/soft_dev_pract/comment_at_start.py --input ../collect_repositories/results/repositories_filtered.csv --output results/soft_dev_pract.csv
 ```
 
-5. 
+5. Making requirments explicit (currently supports Python, C++, R)
+In this step, **requirments_explicit.py** checks the presence of  'requirements.txt' in python, 'DESCRIPTION' for R, 'CMakeLists.txt' for C++. 
+**Note:-** The file `repositories_filtered.csv`should have a column name language stating the language of the repository. 
+
+- `--input`: The file name of the repositories.  Default value: `../collect_repositories/results/repositories_filtered.csv`
+- `--output`: The file name of the output. Default value: `results/soft_dev_pract.csv`
+Navigate to the folder and execute the script. Adjust parameters as needed. Example:
+
+```
+python3 scripts/soft_dev_pract/requirments_explicit.py
+python3 scripts/soft_dev_pract/requirments_explicit.py --input ../collect_repositories/results/repositories_filtered.csv
+python3 scripts/soft_dev_pract/requirments_explicit.py --input ../collect_repositories/results/repositories_filtered.csv --output results/soft_dev_pract.csv
+```
 
 ### Gather GitHub variables as tidy data
 
