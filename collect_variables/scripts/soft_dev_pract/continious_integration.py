@@ -1,16 +1,14 @@
 """
 This script checks for the presence of folders .github (github actions)
-in the root
-directory of GitHub repositories listed in a CSV file.
-It uses the GitHub API
-to access the repositories and updates the CSV file with the results.
+in the root directory of GitHub repositories listed in a CSV file.
+It uses the GitHub API to access the repositories and updates the CSV file with the results.
 """
 
 import argparse
 import os
 import time
 import pandas as pd
-from github import Github, GithubException, RateLimitExceededException # pylint: disable=E0611
+from github import Github, GithubException, RateLimitExceededException  # pylint: disable=E0611
 from dotenv import load_dotenv
 
 # Get the directory of the current script
@@ -25,8 +23,6 @@ load_dotenv(dotenv_path=env_path, override=True)
 # Get the GITHUB_TOKEN and GITHUB_USERNAME from the .env file
 token = os.getenv('GITHUB_TOKEN')
 username = os.getenv('GITHUB_USERNAME')
-print(f"Token: {token}")
-print(f"Username: {username}")
 
 # Use the token to create a Github instance
 g = Github(token)
@@ -129,14 +125,15 @@ def check_azure_pipelines(repo):
         return None
 
 
-def main(input_csv_file):
+def main(input_csv_file, output_csv_file):
     """
     Main function to check for continuous integration tools in GitHub repositories.
 
     Parameters:
     input_csv_file (str): Path to the input CSV file.
+    output_csv_file (str): Path to the output CSV file.
     """
-    data_frame = pd.read_csv(input_csv_file, sep=';', on_bad_lines='warn')
+    data_frame = pd.read_csv(input_csv_file, sep=',', on_bad_lines='warn')
     if 'continuous_integration' not in data_frame.columns:
         data_frame['continuous_integration'] = False
     if 'ci_tool' not in data_frame.columns:
@@ -169,7 +166,7 @@ def main(input_csv_file):
             count += 1
             print(f"Repositories completed: {count}")
             # Save to CSV after each repository is checked
-            data_frame.to_csv(input_csv_file, index=False)
+            data_frame.to_csv(output_csv_file, index=False)
         except RateLimitExceededException:
             print("Rate limit exceeded. Sleeping until reset...")
             reset_time = g.rate_limiting_resettime
@@ -181,10 +178,23 @@ def main(input_csv_file):
             print(f"Error accessing repository {repo_name}: {github_exception}")
             continue
 
+    # Save the final dataframe to the output CSV file
+    data_frame.to_csv(output_csv_file, index=False)
+
 
 if __name__ == "__main__":
-    argument_parser = argparse.ArgumentParser(
+    parser = argparse.ArgumentParser(
         description='Check for GitHub Actions in GitHub repositories.')
-    argument_parser.add_argument('csv_file', type=str, help='Input CSV file')
-    arguments = argument_parser.parse_args()
-    main(arguments.csv_file)
+    parser.add_argument(
+        '--input',
+        default='../collect_repositories/results/repositories_filtered.csv',
+        help='Input CSV file containing repository URLs in "html_url" column'
+    )
+    parser.add_argument(
+        '--output',
+        default='results/soft_dev_pract.csv',
+        help='Output CSV file to save the analysis results'
+    )
+    args = parser.parse_args()
+
+    main(args.input, args.output)
