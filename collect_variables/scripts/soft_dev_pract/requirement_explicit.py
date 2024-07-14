@@ -70,18 +70,6 @@ def check_requirements(repository_url):
         return False
 
 if __name__ == "__main__":
-    """
-    Command-line utility to check if requirements are explicitly defined in GitHub repositories
-    listed in a CSV input file, and save results to another CSV output file.
-
-    Usage:
-    python3 scripts/soft_dev_pract/requirments_explicit.py --input <input_csv_file> --output <output_csv_file>
-
-    Defaults:
-    - input_csv_file: ../collect_repositories/results/repositories_filtered.csv
-    - output_csv_file: results/soft_dev_pract.csv
-    """
-
     # Create an ArgumentParser object
     argument_parser = argparse.ArgumentParser(
         description='Check requirements of GitHub repositories listed in a CSV file.')
