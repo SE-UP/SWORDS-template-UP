@@ -77,7 +77,7 @@ def check_comment_at_start(file_url, headers):
     if response.status_code == 200:
         content = response.text
         lines = content.split('\n')
-        if len(lines) > 0:
+        if lines:
             first_line = lines[0].strip()
             prefixes = ['#', '//', '/*', "'''", '"', "#'"]
             if any(first_line.startswith(prefix) for prefix in prefixes):
@@ -90,25 +90,21 @@ def check_comment_at_start(file_url, headers):
     return False
 
 
-def analyze_repositories(input_csv):
+def analyze_repositories(input_csv, output_csv):
     """
     Analyzes GitHub repositories for comments at the start of files.
 
     Args:
-        input_csv (str): Input CSV file containing repository URLs i
-        n "html_url" column.
+        input_csv (str): Input CSV file containing repository URLs in "html_url" column.
+        output_csv (str): Output CSV file to save the analysis results.
 
     The function updates the input CSV file with two new columns:
-    'comment_percentage' - The percentage of files in the repository
-    that start with a comment.
+    'comment_percentage' - The percentage of files in the repository that start with a comment.
     'comment_category' - Categorical representation of 'comment_percentage'.
-    Can be 'none', 'some', 'more', or 'most'.
+                         Can be 'none', 'some', 'more', or 'most'.
     """
     headers = {'Authorization': f'token {token}'}
-    # pylint: disable=invalid-name
     df = pd.read_csv(input_csv, sep=',', on_bad_lines='warn')
-    # Filter the DataFrame based on the 'language' column
-    # pylint: disable=invalid-name
     df = df[df['language'].isin(['Python', 'R', 'C++'])]
     total_repos = len(df)
 
@@ -147,19 +143,27 @@ def analyze_repositories(input_csv):
             df.loc[index, 'comment_category'] = comment_category
 
             # Save the record as soon as it is fetched
-            df.to_csv(input_csv, index=False)
-        # pylint: disable=broad-except
+            df.to_csv(output_csv, index=False)
         except Exception as error:
             print(f"Error processing repository {repo_url}: {error}")
+
+    # Save the final dataframe to the output CSV file
+    df.to_csv(output_csv, index=False)
 
 
 if __name__ == '__main__':
     DESC = 'Analyze GitHub repositories for comments at start of files.'
     parser = argparse.ArgumentParser(description=DESC)
     parser.add_argument(
-        'input_csv',
+        '--input',
+        default='../collect_repositories/results/repositories_filtered.csv',
         help='Input CSV file containing repository URLs in "html_url" column'
+    )
+    parser.add_argument(
+        '--output',
+        default='results/soft_dev_pract.csv',
+        help='Output CSV file to save the analysis results'
     )
     args = parser.parse_args()
 
-    analyze_repositories(args.input_csv)
+    analyze_repositories(args.input, args.output)
