@@ -1,5 +1,5 @@
 """
-Checks test' or 'tests' directories at the root level of GitHub
+Checks 'test' or 'tests' directories at the root level of GitHub
 repositories specified in a CSV file.
 """
 
@@ -21,8 +21,6 @@ load_dotenv(dotenv_path=env_path, override=True)
 # Get the GITHUB_TOKEN and GITHUB_USERNAME from the .env file
 token = os.getenv('GITHUB_TOKEN')
 username = os.getenv('GITHUB_USERNAME')
-print(f"Token: {token}")
-print(f"Username: {username}")
 
 # Use the token to create a Github instance
 github_instance = Github(token)
@@ -42,8 +40,7 @@ def check_test_folder(repo):
     try:
         contents = repo.get_contents("")
         for content in contents:
-            if content.type == "dir" and \
-                    content.name.lower() in ["test", "tests"]:
+            if content.type == "dir" and content.name.lower() in ["test", "tests"]:
                 return True
         return False
     except GithubException as github_exception:
@@ -51,20 +48,22 @@ def check_test_folder(repo):
         return False
 
 
-def main(csv_file):
+def main(input_csv, output_csv):
     """
     Main function to read the CSV file, check the repositories,
-      and update the CSV file.
+    and update the CSV file.
 
     Parameters:
-    csv_file (str): The path to the CSV file.
+    input_csv (str): The path to the input CSV file.
+    output_csv (str): The path to the output CSV file.
     """
-    data_frame = pd.read_csv(csv_file, sep=';', on_bad_lines='warn')
+    data_frame = pd.read_csv(input_csv, sep=',', on_bad_lines='warn')
     if 'test_folder' not in data_frame.columns:
         data_frame['test_folder'] = False
 
     count = 0
-    for url in data_frame['html_url']:
+    for index, row in data_frame.iterrows():
+        url = row['html_url']
         if pd.isna(url):
             print("Skipping row with missing URL")
             continue
@@ -72,20 +71,23 @@ def main(csv_file):
         repo_name = url.split('https://github.com/')[-1]
         try:
             repo = github_instance.get_repo(repo_name)
-            data_frame.loc[data_frame['html_url'] == url, 'test_folder'] = \
-                check_test_folder(repo)
+            data_frame.loc[index, 'test_folder'] = check_test_folder(repo)
             count += 1
             print(f"Repositories completed: {count}")
         except GithubException as github_exception:
             print(f"Error accessing repository {repo_name}: {github_exception}")
             continue
 
-    data_frame.to_csv(csv_file, index=False)
+    data_frame.to_csv(output_csv, index=False)
 
 
 if __name__ == "__main__":
-    argument_parser = argparse.ArgumentParser(
-        description='Check for test folders in GitHub repositories.')
-    argument_parser.add_argument('csv_file', type=str, help='Input CSV file')
-    arguments = argument_parser.parse_args()
-    main(arguments.csv_file)
+    DESCRIPTION = 'Check for test folders in GitHub repositories.'
+    parser = argparse.ArgumentParser(description=DESCRIPTION)
+    parser.add_argument('--input', type=str,
+                        default='../collect_repositories/results/repositories_filtered.csv',
+                        help='Input CSV file')
+    parser.add_argument('--output', type=str, default='results/soft_dev_pract.csv',
+                        help='Output CSV file')
+    args = parser.parse_args()
+    main(args.input, args.output)
