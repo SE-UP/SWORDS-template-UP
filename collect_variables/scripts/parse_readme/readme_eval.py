@@ -36,15 +36,15 @@ def check_keywords(text, keywords):
     return False
 
 
-def main(csv_file):
+def main(input_csv):
     """
     Main function to read the CSV file, check the repositories,
-      and update the CSV file.
+    and update the CSV file.
 
     Parameters:
-    csv_file (str): The path to the CSV file.
+    input_csv (str): The path to the input CSV file.
     """
-    data_frame = pd.read_csv(csv_file, sep=',', on_bad_lines='warn')
+    data_frame = pd.read_csv(input_csv, sep=',', on_bad_lines='warn')
     if 'reproduce' not in data_frame.columns:
         data_frame['reproduce'] = False
     if 'security' not in data_frame.columns:
@@ -57,12 +57,12 @@ def main(csv_file):
         data_frame.loc[index, 'reproduce'] = check_keywords(readme, REPRODUCIBILITY_KEYWORDS)
         data_frame.loc[index, 'security'] = check_keywords(readme, SECURITY_KEYWORDS)
 
-    data_frame.to_csv(csv_file, index=False)
+    data_frame.to_csv(input_csv, index=False)
 
 
 if __name__ == "__main__":
     ARGUMENT_PARSER = argparse.ArgumentParser(
-        description='Check for test folders in GitHub repositories.')
-    ARGUMENT_PARSER.add_argument('csv_file', type=str, help='Input CSV file')
+        description='Check for reproducibility and security keywords in README files.')
+    ARGUMENT_PARSER.add_argument('--input', type=str, required=True, help='Input CSV file')
     ARGUMENTS = ARGUMENT_PARSER.parse_args()
-    main(ARGUMENTS.csv_file)
+    main(ARGUMENTS.input)
