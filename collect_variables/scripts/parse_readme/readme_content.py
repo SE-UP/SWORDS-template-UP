@@ -23,11 +23,11 @@ def get_readme_content(github_url, api):
 
     Args:
         github_url (str): The URL of the GitHub repository.
+        api (GhApi): The GitHub API client.
 
     Returns:
         str: The README content, or None if the request was unsuccessful.
     """
-
     if not isinstance(github_url, str):
         print(f"Invalid GitHub URL: {github_url}")
         return None
@@ -64,15 +64,13 @@ def get_readme_content(github_url, api):
     return None
 
 
-def process_csv_file():
+def process_csv_file(input_csv):
     """
-    Process the CSV file to fetch and print the README content from repository.
-    """
-    description = 'Fetch and print the README content from repository.'
-    parser = argparse.ArgumentParser(description=description)
-    parser.add_argument('csv_file', type=str, help='The CSV file path')
-    args = parser.parse_args()
+    Process the CSV file to fetch the README content from repositories and update the CSV.
 
+    Args:
+        input_csv (str): The path to the input CSV file.
+    """
     script_dir = os.path.dirname(os.path.realpath(__file__))
     env_path = os.path.join(script_dir, '..', '..', '..', '.env')
     load_dotenv(dotenv_path=env_path, override=True)
@@ -83,7 +81,7 @@ def process_csv_file():
     chunksize = 100
     chunks = []
 
-    for chunk in pd.read_csv(args.csv_file, sep=';', chunksize=chunksize):
+    for chunk in pd.read_csv(input_csv, sep=';', chunksize=chunksize):
         for i, row in chunk.iterrows():
             readme_content = get_readme_content(row['html_url'], api)
             if readme_content:
@@ -94,8 +92,12 @@ def process_csv_file():
         chunks.append(chunk)
 
     dataframe = pd.concat(chunks, ignore_index=True)
-    dataframe.to_csv(args.csv_file, index=False)
+    dataframe.to_csv(input_csv, index=False)
 
 
 if __name__ == '__main__':
-    process_csv_file()
+    description = 'Fetch and update the README content from repositories listed in a CSV file.'
+    parser = argparse.ArgumentParser(description=description)
+    parser.add_argument('--input', type=str, required=True, help='The input CSV file path')
+    args = parser.parse_args()
+    process_csv_file(args.input)
