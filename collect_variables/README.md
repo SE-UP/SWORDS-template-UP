@@ -190,6 +190,26 @@ Navigate to this folder and execute the script. Adjust parameters as needed. Exa
 python scripts/parse_readme/parse_readme.py --input results/readmes.csv
 ```
 
+2. **readme_content.py** retrieve the README.md content of repositories and save it in the csv file for more easier analysis. 
+
+There are 2 arguments that can be passed.
+
+- `--input`: The file name of the repositories. Default value: `/results/readmes.csv`
+- `--output`: The file name of the output. Default value: `results/readme_variables.csv`
+
+```console
+python scripts/parse_readme/readme_content.py --input results/readmes.csv
+```
+
+3.**readme_eval.py** retrieves the keywords (reproducibility and security) from the collected README content.
+
+- **Reproducibility Keywords**: `installation`, `setup`, `usage`, `docker`, `containerisation`, `versioning`, `data`
+- **Security Keywords**: `security`, `authentication`, `encryption`, `access control`, `audit`, `logging`, `updates`, `patches`, `penetration testing`, `vulnerability testing`
+
+```console
+python scripts/parse_readme/readme_eval.py --input results/readmes.csv
+```
+
 ### Download statistics
 
 Installation statistics are collected from the registries PyPi, npm and RStudio CRAN mirror. Assumes JSON format as input.
