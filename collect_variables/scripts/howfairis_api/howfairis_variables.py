@@ -44,33 +44,53 @@ def read_input_file(file_path):
     if "xlsx" in file_path:
         file = pd.read_excel(file_path, engine='openpyxl')
     else:
-        file = pd.read_csv(file_path)
+        file = pd.read_csv(file_path, delimiter= ';', encoding='latin1')
     return file
+
+
+def is_supported_repo(url):
+    """Check if the repository URL is from a supported domain.
+
+    Args:
+        url (str): Repository URL
+
+    Returns:
+        bool: True if the repository is supported, False otherwise
+    """
+    supported_domains = ["github.com", "gitlab.com"]
+    return any(domain in url for domain in supported_domains)
 
 
 def parse_repo(repo_url):
     """Parses a repository for howfairis variables
 
     Args:
-        repo_url (string): repository that should be parsed
+        repo_url (str): Repository that should be parsed
 
     Returns:
-        list: a list with the repository url and the variables
+        list: A list with the repository URL and the variables, or None if skipped
     """
+    # pylint: disable=redefined-outer-name
+    if not is_supported_repo(repo_url):
+        print(f"Skipping unsupported repository: {repo_url}")
+        return None
+
     request_successful = False
     while not request_successful:
         try:
             entry = [repo_url]
-            entry.extend(get_howfairis_compliance(repo_url))
-            print(entry)
-            time.sleep(1)
-            request_successful = True
-            return entry
-        except Exception as error: # pylint: disable=broad-except
-            print(f"Error occured for {repo_url} (most likely timeout issue due"
-                f" to API limitation. Sleep for a while. Error message: {error}")
-            if "Something went wrong asking the repo for its default branch" in str(
-                    error): # repo might be deleted
+            compliance = get_howfairis_compliance(repo_url)
+            if compliance is not None:
+                entry.extend(compliance)
+                print(entry)
+                time.sleep(1)
+                request_successful = True
+                return entry
+
+        except Exception as error:  # pylint: disable=broad-except
+            print(f"Error occurred for {repo_url} (most likely timeout issue due"
+                  f" to API limitation). Sleep for a while. Error message: {error}")
+            if "Something went wrong asking the repo for its default branch" in str(error):
                 print("Skipping repository...")
                 request_successful = True  # skip this repo
                 return None
@@ -79,6 +99,7 @@ def parse_repo(repo_url):
             else:
                 sleep_time = api.rate_limit.get()["rate"]["reset"] - int(time.time())
                 time.sleep(sleep_time + 2)
+
     return None
 
 
@@ -116,8 +137,8 @@ if __name__ == '__main__':
     df_repos = read_input_file(args.input)
     howfairis_variables = []
 
-    for counter, url in enumerate(df_repos["html_url"]):
-        result = parse_repo(url)
+    for counter, repo_url in enumerate(df_repos["html_url"]):
+        result = parse_repo(repo_url)
         if result is not None: # If repo is deleted it is None
             howfairis_variables.append(result)
         if counter % 10 == 0:
