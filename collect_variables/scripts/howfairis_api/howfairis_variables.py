@@ -33,46 +33,46 @@ def get_howfairis_compliance(url_repo):
 
 
 def read_input_file(file_path):
-    """reads in the input file through Pandas
+    """Reads in the input file through Pandas.
 
     Args:
-        file_path (string): path to the file
+        file_path (string): Path to the file.
 
     Returns:
-        DataFrame
+        DataFrame: DataFrame containing the data from the file.
     """
     if "xlsx" in file_path:
         file = pd.read_excel(file_path, engine='openpyxl')
     else:
-        file = pd.read_csv(file_path, delimiter= ';', encoding='latin1')
+        file = pd.read_csv(file_path, delimiter=';', encoding='latin1')
     return file
 
 
 def is_supported_repo(url):
-    """Check if the repository URL is from a supported domain.
+    """Check if the repository URL is from a supported domain and starts with 'https://'.
 
     Args:
-        url (str): Repository URL
+        url (str): Repository URL.
 
     Returns:
-        bool: True if the repository is supported, False otherwise
+        bool: True if the repository is supported and starts with 'https://', False otherwise.
     """
     supported_domains = ["github.com", "gitlab.com"]
-    return any(domain in url for domain in supported_domains)
+    return url.startswith("https://") and any(domain in url for domain in supported_domains)
 
 
-def parse_repo(repo_url):
-    """Parses a repository for howfairis variables
+def parse_repo(repo_url, api):
+    """Parses a repository for howfairis variables.
 
     Args:
-        repo_url (str): Repository that should be parsed
+        repo_url (str): Repository that should be parsed.
+        api (GhApi): GitHub API instance.
 
     Returns:
-        list: A list with the repository URL and the variables, or None if skipped
+        list: A list with the repository URL and the variables, or None if skipped.
     """
-    # pylint: disable=redefined-outer-name
     if not is_supported_repo(repo_url):
-        print(f"Skipping unsupported repository: {repo_url}")
+        print(f"Skipping unsupported or non-https repository: {repo_url}")
         return None
 
     request_successful = False
@@ -103,18 +103,17 @@ def parse_repo(repo_url):
     return None
 
 
-# if unauthorized API is used, rate limit is lower,
-# leading to a ban and waiting time needs to be increased
-# see: https://github.com/fair-software/howfairis/#rate-limit
-load_dotenv()
-token = os.getenv('GITHUB_TOKEN')
-user = os.getenv('GITHUB_USER')
+def main():
+    """Main function to retrieve howfairis variables for repositories."""
+    # Load GitHub token and user from environment variables
+    load_dotenv()
+    token = os.getenv('GITHUB_TOKEN')
+    user = os.getenv('GITHUB_USER')
 
-api = GhApi(token=token)
-if token is not None and user is not None:
-    os.environ['APIKEY_GITHUB'] = user + ":" + token
+    api = GhApi(token=token)
+    if token is not None and user is not None:
+        os.environ['APIKEY_GITHUB'] = user + ":" + token
 
-if __name__ == '__main__':
     # Initiate the parser
     parser = argparse.ArgumentParser()
 
@@ -133,13 +132,12 @@ if __name__ == '__main__':
     args = parser.parse_args()
     print(f"Retrieving howfairis variables for the following file: {args.input}")
 
-
     df_repos = read_input_file(args.input)
     howfairis_variables = []
 
     for counter, repo_url in enumerate(df_repos["html_url"]):
-        result = parse_repo(repo_url)
-        if result is not None: # If repo is deleted it is None
+        result = parse_repo(repo_url, api)
+        if result is not None:  # If repo is deleted it is None
             howfairis_variables.append(result)
         if counter % 10 == 0:
             print(f"Parsed {counter} out of {len(df_repos.index)} repos.")
@@ -159,3 +157,7 @@ if __name__ == '__main__':
         f"Successfully retrieved howfairis variables for {len(df_howfairis.index)}"
         f" out of {len(df_repos.index)} repositories. Saved result to {args.output}."
     )
+
+
+if __name__ == '__main__':
+    main()
