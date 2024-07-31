@@ -58,7 +58,12 @@ def is_supported_repo(url):
         bool: True if the repository is supported and starts with 'https://', False otherwise.
     """
     supported_domains = ["github.com", "gitlab.com"]
-    return url.startswith("https://") and any(domain in url for domain in supported_domains)
+    if not url.startswith("https://"):
+        return False
+    for domain in supported_domains:
+        if f"https://{domain}" in url or f"https://www.{domain}" in url:
+            return True
+    return False
 
 
 def parse_repo(repo_url, api):
