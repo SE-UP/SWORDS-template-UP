@@ -2,8 +2,9 @@
 """
 Tests for methods in variable collection
 """
+import time
 import pytest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, Mock
 
 from fastcore.foundation import AttrDict, L
 from howfairis import Compliance
@@ -24,19 +25,25 @@ from collect_variables.scripts.howfairis_api.howfairis_variables import (get_how
 def mock_repo(*args, **kwargs):
     return Repo(repo_url="https://github.com/asreview/asreview-covid19", repo_owner="asreview", repo_repo_name="asreview-covid19", repo_branch="main")
 
+@pytest.fixture
+def mock_api():
+    """Fixture to mock the GhApi instance."""
+    api = MagicMock()
+    api.rate_limit.get.return_value = {"rate": {"reset": int(time.time()) + 10}}
+    return api
 
 """
 Tests for howfairis.py
 """
 
 
-def test_parse_repo(mock_repo, monkeypatch):
+def test_parse_repo(mock_repo, mock_api, monkeypatch):
     def mock_get(*args, **kwargs):
         return (True, True, True, True, False)
     monkeypatch.setattr(
         "collect_variables.scripts.howfairis_api.howfairis_variables.get_howfairis_compliance", mock_get)
 
-    result = parse_repo(mock_repo.url)
+    result = parse_repo(mock_repo.url, mock_api)
     assert "asreview-covid19" in result[0] and True == result[1] 
 
 
