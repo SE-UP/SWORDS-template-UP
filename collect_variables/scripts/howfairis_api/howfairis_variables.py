@@ -5,11 +5,13 @@ import os
 import time
 from datetime import datetime
 import argparse
-
+from urllib.parse import urlparse
 from howfairis import Repo, Checker
 from ghapi.all import GhApi
 import pandas as pd
 from dotenv import load_dotenv
+
+
 
 
 def get_howfairis_compliance(url_repo):
@@ -60,10 +62,12 @@ def is_supported_repo(url):
     supported_domains = ["github.com", "gitlab.com"]
     if not url.startswith("https://"):
         return False
-    for domain in supported_domains:
-        if f"https://{domain}" in url or f"https://www.{domain}" in url:
-            return True
-    return False
+    parsed_url = urlparse(url)
+    if parsed_url.netloc.startswith("www."):
+        netloc = parsed_url.netloc[4:]  # Remove the 'www.' prefix
+    else:
+        netloc = parsed_url.netloc
+    return any(domain == netloc for domain in supported_domains)
 
 
 def parse_repo(repo_url, api):
@@ -95,7 +99,8 @@ def parse_repo(repo_url, api):
         except Exception as error:  # pylint: disable=broad-except
             print(f"Error occurred for {repo_url} (most likely timeout issue due"
                   f" to API limitation). Sleep for a while. Error message: {error}")
-            if "Something went wrong asking the repo for its default branch" in str(error):
+            if ("Something went wrong asking the repo for its default branch" in str(error) or
+                "Repository should be on github.com or on gitlab.com" in str(error)):
                 print("Skipping repository...")
                 request_successful = True  # skip this repo
                 return None
