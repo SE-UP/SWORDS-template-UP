@@ -29,14 +29,17 @@ def repo_coc(*args, **kwargs):
 def service():
     return Service(api=GhApi(), sleep=10)
 
+@pytest.fixture
+def api():
+    return GhApi()
 
 """
 Tests for howfairis_variables.py and github.py
 """
 
 
-def test_get_howfairis_variables(repo):
-    result = parse_repo(repo.url)
+def test_get_howfairis_variables(repo, api):
+    result = parse_repo(repo.url, api)
     time.sleep(10)
     assert len(result) == 6
 
