@@ -1,15 +1,14 @@
+
 """
-This script reads a CSV file containing GitHub repository URLs.
-For each repository that has GitHub Actions enabled, it checks the
-YAML files in the .github/workflows directory
-for the presence of certain testing libraries and linters for
-Python, R, and C++.
-The results are written back to the CSV file in the 'add_test_rule'
-and 'add_lint_rule' columns
-The script handles the GitHub API rate limit by sleeping until the
-rate limit resets.
-If the 'add_test_rule' and 'add_lint_rule' columns already have
-a value (True or False), the repository is skipped.
+This script processes a CSV file containing GitHub repository URLs. 
+For each repository with GitHub Actions enabled, it scans the YAML files in the 
+.github/workflows directory to detect the presence of specific testing libraries
+and linters for Python, R, and C++. The findings are recorded in the 
+'add_test_rule' and 'add_lint_rule' columns of the CSV file.
+
+To manage GitHub API rate limits, the script pauses execution until the rate 
+limit resets. Repositories with existing values (True or False) in the 
+'add_test_rule' and 'add_lint_rule' columns are skipped.
 """
 
 import os
