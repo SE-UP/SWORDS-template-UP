@@ -72,12 +72,23 @@ def check_requirements(repository_url):
 if __name__ == "__main__":
     # Create an ArgumentParser object
     argument_parser = argparse.ArgumentParser(
-        description='Check requirements of GitHub repositories listed in a CSV file.')
-    argument_parser.add_argument('--input', type=str,
-                                 default='../collect_repositories/results/repositories_filtered.csv',
-                                 help='Input CSV file containing GitHub repository URLs')
-    argument_parser.add_argument('--output', type=str, default='results/soft_dev_pract.csv',
-                                 help='Output CSV file to save results')
+        description='Check requirements of GitHub repositories listed in a CSV file.'
+    )
+
+    # Add command-line arguments
+    argument_parser.add_argument(
+        '--input',
+        type=str,
+        default='../collect_repositories/results/repositories_filtered.csv',
+        help='Input CSV file containing GitHub repository URLs'
+    )
+
+    argument_parser.add_argument(
+        '--output', 
+        type=str,
+        default='results/soft_dev_pract.csv',
+        help='Output CSV file to save results'
+    )
 
     # Parse command-line arguments
     command_line_arguments = argument_parser.parse_args()
