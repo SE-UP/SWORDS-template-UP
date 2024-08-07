@@ -1,5 +1,5 @@
 '''
-This program checks the presence of comments at the start of
+This program checks the presence of brief comments at the start of
 source code files in GitHub repositories.
 '''
 import os
