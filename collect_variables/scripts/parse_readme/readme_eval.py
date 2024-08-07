@@ -1,5 +1,5 @@
 """
-This program finds certain keywords in the README.md.
+This program finds (Reproducibility and Security) keywords in the README.md.
 """
 
 import re
