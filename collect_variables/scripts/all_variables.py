@@ -55,7 +55,7 @@ if __name__ == '__main__':
     token = os.getenv('GITHUB_TOKEN')
     serv = Service(api=GhApi(token=token))
     parser = argparse.ArgumentParser()
-
+    api = serv
     parser.add_argument(
         "--input",
         "-i",
@@ -119,7 +119,7 @@ if __name__ == '__main__':
             data
         )
         if REQUEST_SUCCESSFUL:
-            howfairis_values = parse_repo(url)
+            howfairis_values = parse_repo(url, api)
             data["howfairis"] = dict(zip(howfairis_keys, howfairis_values[1:]))
             topics = ast.literal_eval(topics_str)
             data["topics"] = topics
