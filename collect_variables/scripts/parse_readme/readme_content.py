@@ -1,9 +1,7 @@
 """
-This script fetches the README content from a list of GitHub repositories provided in a CSV file.
-It uses the GitHub API to fetch the README content, and stores the content in a
- new column in the CSV file.
-The script handles pagination by reading the CSV file in chunks, 
-and it handles rate limiting by using a GitHub token.
+Reads github repostory links from given csv file and 
+fetch the README content, and stores the content in a
+ new column (single cell per readme) in the CSV file.
 """
 
 import os
