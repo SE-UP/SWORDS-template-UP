@@ -62,12 +62,13 @@ def get_readme_content(github_url, api):
     return None
 
 
-def process_csv_file(input_csv):
+def process_csv_file(input_csv, output_csv):
     """
     Process the CSV file to fetch the README content from repositories and update the CSV.
 
     Args:
         input_csv (str): The path to the input CSV file.
+        output_csv (str): The path to the output CSV file.
     """
     script_dir = os.path.dirname(os.path.realpath(__file__))
     env_path = os.path.join(script_dir, '..', '..', '..', '.env')
@@ -90,12 +91,13 @@ def process_csv_file(input_csv):
         chunks.append(chunk)
 
     dataframe = pd.concat(chunks, ignore_index=True)
-    dataframe.to_csv(input_csv, index=False)
+    dataframe.to_csv(output_csv, index=False)
 
 
 if __name__ == '__main__':
     description = 'Fetch and update the README content from repositories listed in a CSV file.'
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument('--input', type=str, required=True, help='The input CSV file path')
+    parser.add_argument('--output', type=str, required=True, help='The output CSV file path')
     args = parser.parse_args()
-    process_csv_file(args.input)
+    process_csv_file(args.input, args.output)
