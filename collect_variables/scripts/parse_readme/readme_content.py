@@ -124,15 +124,21 @@ def process_csv_file(input_csv, output_csv):
 
     for chunk in pd.read_csv(input_csv, sep=';', chunksize=chunksize):
         for i, row in chunk.iterrows():
-            if is_github_url(row['html_url']):
-                print(f"Processing URL: {row['html_url']}")
-                readme_content = get_readme_content(row['html_url'], api)
+            # Ensure `html_url` is a string, handling NaN values
+            html_url = row.get('html_url', '')
+            if isinstance(html_url, float) and pd.isna(html_url):
+                html_url = ''  # Convert NaN to empty string
+            html_url = str(html_url).strip()  # Convert to string and strip whitespace
+
+            if is_github_url(html_url):
+                print(f"Processing URL: {html_url}")
+                readme_content = get_readme_content(html_url, api)
                 if readme_content:
                     readme_content = readme_content.replace('\n', ' ')
                 else:
                     readme_content = None
             else:
-                print(f"Skipping non-GitHub URL: {row['html_url']}")
+                print(f"Skipping non-GitHub URL: {html_url}")
                 readme_content = None
             chunk.at[i, 'readme'] = readme_content
         chunks.append(chunk)
@@ -140,6 +146,7 @@ def process_csv_file(input_csv, output_csv):
     dataframe = pd.concat(chunks, ignore_index=True)
     dataframe.to_csv(output_csv, index=False)
     print(f"Processing complete. Updated CSV saved to {output_csv}")
+
 
 if __name__ == '__main__':
     description = 'Fetch and update the README content from repositories listed in a CSV file.'
