@@ -6,14 +6,14 @@ fetch the README content, and stores the content in a
 
 import os
 import base64
+import time
 from urllib.parse import urlparse, unquote
 import argparse
 import requests
 import pandas as pd
 from dotenv import load_dotenv
 from ghapi.all import GhApi
-from requests.exceptions import HTTPError
-import time
+from requests.exceptions import HTTPError, Timeout
 
 def handle_rate_limit(response):
     """
@@ -42,6 +42,48 @@ def is_github_url(url):
     """
     return url.startswith('https://github.com')
 
+def get_content_from_github(api, owner, repo):
+    """
+    Fetch the contents of a GitHub repository.
+
+    Args:
+        api (GhApi): The GitHub API client.
+        owner (str): The owner of the repository.
+        repo (str): The repository name.
+
+    Returns:
+        list: List of contents of the repository.
+    """
+    try:
+        return api.repos.get_content(owner, repo, path="")
+    except HTTPError as e:
+        if e.response.status_code in {404, 403}:
+            handle_rate_limit(e.response)
+        print(f"HTTP error occurred: {e}. Skipping this repository.")
+    return None
+
+def download_readme_content(content):
+    """
+    Download the README content from the provided content information.
+
+    Args:
+        content (dict): The content information.
+
+    Returns:
+        str: The README content, or None if the request was unsuccessful.
+    """
+    if 'content' in content:
+        return base64.b64decode(content.content).decode('utf-8')
+    if content.download_url:
+        try:
+            response = requests.get(content.download_url, timeout=10)
+            handle_rate_limit(response)  # Check for rate limit and wait if needed
+            response.raise_for_status()
+            return response.text
+        except Timeout:
+            print(f"Timeout when trying to download {content.download_url}")
+    return None
+
 def get_readme_content(github_url, api):
     """
     Fetch the README content of a GitHub repository.
@@ -53,12 +95,8 @@ def get_readme_content(github_url, api):
     Returns:
         str: The README content, or None if the request was unsuccessful.
     """
-    if not isinstance(github_url, str):
+    if not isinstance(github_url, str) or not is_github_url(github_url):
         print(f"Invalid GitHub URL: {github_url}")
-        return None
-
-    if not is_github_url(github_url):
-        print(f"Skipping non-GitHub URL: {github_url}")
         return None
 
     parsed_url = urlparse(unquote(github_url))
@@ -67,40 +105,18 @@ def get_readme_content(github_url, api):
         print(f"Invalid GitHub URL format: {github_url}")
         return None
 
-    owner = path_parts[0]
-    repo = path_parts[1]
-
+    owner, repo = path_parts[0], path_parts[1]
     print(f"Processing repository: {owner}/{repo} ({github_url})")
 
-    try:
-        contents = api.repos.get_content(owner, repo, path="")
-        for content in contents:
-            if content.name.lower().startswith('readme'):
-                if 'content' in content:
-                    readme_content = base64.b64decode(content.content)
-                    return f"README_start\n{readme_content.decode('utf-8')}\nREADME_end"
-                if content.download_url:
-                    try:
-                        url = content.download_url
-                        timeout = 10
-                        response = requests.get(url, timeout=timeout)
-                        handle_rate_limit(response)  # Check for rate limit and wait if needed
-                        response.raise_for_status()
-                        return f"README_start\n{response.text}\nREADME_end"
-                    except requests.exceptions.Timeout:
-                        print(f"Timeout when trying to download {content.download_url}")
-                        return None
-    except HTTPError as e:
-        if e.response.status_code == 404:
-            print(f"Repository or content not found for {github_url}. Skipping this repository.")
-        elif e.response.status_code == 403:  # Forbidden, might be rate limiting
-            handle_rate_limit(e.response)
-            # Retry fetching content after handling rate limit
-            return get_readme_content(github_url, api)
-        else:
-            print(f"HTTP error occurred: {e}. Skipping this repository.")
-    except Exception as e:
-        print(f"An unexpected error occurred: {e}. Skipping this repository.")
+    contents = get_content_from_github(api, owner, repo)
+    if contents is None:
+        return None
+
+    for content in contents:
+        if content.name.lower().startswith('readme'):
+            readme_content = download_readme_content(content)
+            if readme_content:
+                return f"README_start\n{readme_content}\nREADME_end"
 
     return None
 
@@ -124,7 +140,6 @@ def process_csv_file(input_csv, output_csv):
 
     for chunk in pd.read_csv(input_csv, sep=';', chunksize=chunksize):
         for i, row in chunk.iterrows():
-            # Ensure `html_url` is a string, handling NaN values
             html_url = row.get('html_url', '')
             if isinstance(html_url, float) and pd.isna(html_url):
                 html_url = ''  # Convert NaN to empty string
@@ -135,22 +150,19 @@ def process_csv_file(input_csv, output_csv):
                 readme_content = get_readme_content(html_url, api)
                 if readme_content:
                     readme_content = readme_content.replace('\n', ' ')
-                else:
-                    readme_content = None
+                chunk.at[i, 'readme'] = readme_content
             else:
                 print(f"Skipping non-GitHub URL: {html_url}")
-                readme_content = None
-            chunk.at[i, 'readme'] = readme_content
+                chunk.at[i, 'readme'] = None
         chunks.append(chunk)
 
     dataframe = pd.concat(chunks, ignore_index=True)
     dataframe.to_csv(output_csv, index=False)
     print(f"Processing complete. Updated CSV saved to {output_csv}")
 
-
 if __name__ == '__main__':
-    description = 'Fetch and update the README content from repositories listed in a CSV file.'
-    parser = argparse.ArgumentParser(description=description)
+    DESCRIPTION = 'Fetch and update the README content from repositories listed in a CSV file.'
+    parser = argparse.ArgumentParser(description=DESCRIPTION)
     parser.add_argument('--input', type=str, required=True, help='The input CSV file path')
     parser.add_argument('--output', type=str, required=True, help='The output CSV file path')
     args = parser.parse_args()
