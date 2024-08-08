@@ -44,14 +44,14 @@ def get_readme_content(github_url, api):
             if content.name.lower().startswith('readme'):
                 if 'content' in content:
                     readme_content = base64.b64decode(content.content)
-                    return readme_content.decode('utf-8')
+                    return f"README_start\n{readme_content.decode('utf-8')}\nREADME_end"
                 if content.download_url:
                     try:
                         url = content.download_url
                         timeout = 10
                         response = requests.get(url, timeout=timeout)
                         response.raise_for_status()
-                        return response.text
+                        return f"README_start\n{response.text}\nREADME_end"
                     except requests.exceptions.Timeout:
                         print(f"Timeout when trying to download {content.download_url}")
                         return None
