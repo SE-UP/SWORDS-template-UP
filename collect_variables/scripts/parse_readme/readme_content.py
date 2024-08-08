@@ -92,15 +92,16 @@ def get_readme_content(github_url, api):
                         return None
     except HTTPError as e:
         if e.response.status_code == 404:
-            print(f"Repository or content not found for {github_url}.")
+            print(f"Repository or content not found for {github_url}. Skipping this repository.")
         elif e.response.status_code == 403:  # Forbidden, might be rate limiting
             handle_rate_limit(e.response)
             # Retry fetching content after handling rate limit
             return get_readme_content(github_url, api)
         else:
-            print(f"HTTP error occurred: {e}")
+            print(f"HTTP error occurred: {e}. Skipping this repository.")
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}. Skipping this repository.")
 
-    print(f"No README found for {github_url}")
     return None
 
 def process_csv_file(input_csv, output_csv):
@@ -147,4 +148,3 @@ if __name__ == '__main__':
     parser.add_argument('--output', type=str, required=True, help='The output CSV file path')
     args = parser.parse_args()
     process_csv_file(args.input, args.output)
-
