@@ -4,7 +4,7 @@ Tests for methods in variable collection
 """
 import time
 import pytest
-from unittest.mock import MagicMock, Mock
+from unittest.mock import MagicMock, Mock, patch
 
 from fastcore.foundation import AttrDict, L
 from howfairis import Compliance
@@ -19,6 +19,8 @@ from collect_variables.scripts.github_api.github import (get_data_from_api,
 
 from collect_variables.scripts.howfairis_api.howfairis_variables import (get_howfairis_compliance,
                                                                          parse_repo)
+
+from collect_variables.scripts.parse_readme.readme_content import (is_github_url,get_readme_content)
 
 
 @pytest.fixture
@@ -272,3 +274,43 @@ YW4gZW1haWwgdG8gYXNyZXZpZXdAdXUubmwuCg==
 
     result = get_readmes(service, mock_repo)
     assert "[ASReview for COVID19]" in result[1]
+
+
+
+"""
+Tests for readme_content.py
+"""
+
+def test_is_github_url():
+    assert is_github_url('https://github.com/user/repo') == True
+    assert is_github_url('https://gitlab.com/user/repo') == False
+    assert is_github_url('http://github.com/user/repo') == False
+    assert is_github_url('http://www.github.com/user/repo') == False
+    assert is_github_url('www.github.com/user/repo') == False
+    assert is_github_url('') == False
+
+@patch('collect_variables.scripts.parse_readme.readme_content.requests.get')
+@patch('collect_variables.scripts.parse_readme.readme_content.GhApi')
+def test_get_readme_content(MockGhApi, mock_get):
+    # Mock the GitHub API client
+    mock_api = MockGhApi.return_value
+    
+    # Set up the mocked response from the GitHub API
+    mock_content = MagicMock()
+    mock_content.name = 'README.md'
+    mock_content.download_url = 'https://raw.githubusercontent.com/Software-Engineering-Group-UP/RSE-UP/main/README.md'  # Real URL for testing
+    mock_api.repos.get_content.return_value = [mock_content]
+
+    # Mock the requests.get call to return a simulated response
+    mock_response = MagicMock()
+    mock_response.text = 'Sample README content from download'
+    mock_response.raise_for_status.return_value = None
+    mock_get.return_value = mock_response
+
+    # Call the function with a real GitHub URL
+    result = get_readme_content('https://github.com/Software-Engineering-Group-UP/RSE-UP', mock_api)
+    
+    # Assert the result
+    assert 'README_start' in result
+    assert 'Sample README content from download' in result
+    assert 'README_end' in result
