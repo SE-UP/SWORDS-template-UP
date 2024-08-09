@@ -1,18 +1,37 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
 cff-version: 1.2.0
-message: "If you use this software, please cite it as below."
+title: SWORDS template UP
+message: >-
+  Adopted and extended (software development practices)
+  SWORDS-template primarily developed for University of
+  Utrecht. 
+type: software
 authors:
-- family-names: "de Bruin"
-  given-names: "Jonathan"
-  orcid: "https://orcid.org/0000-0002-4297-0502"
-- family-names: "Quach"
-  given-names: "Keven"
-  orcid: "https://orcid.org/0009-0002-7017-0331"
-- family-names: "Slewe"
-  given-names: "Christopher"
-- family-names: "Lamprecht"
-  given-names: "Anna-Lena"
-  orcid: "https://orcid.org/0000-0003-1953-5606"
-title: "Scan and revieW of Open Research Data and Software"
-version: 1.0.0
-date-released: 2023-06-17
-url: "https://github.com/UtrechtUniversity/SWORDS-template"
+  - given-names: 'Akshay '
+    family-names: Devkate
+    orcid: 'https://orcid.org/0009-0004-9608-4479'
+    affiliation: University of Potsdam
+  - given-names: Anna-Lena
+    affiliation: University of Potsdam
+    family-names: Lamprecht
+    orcid: 'https://orcid.org/0000-0003-1953-5606'
+repository-code: >-
+  https://github.com/Software-Engineering-Group-UP/SWORDS-template-UP/releases/tag/v1.0.0
+abstract: >-
+  This repository is used to collect and analyse GitHub
+  repositories of researchers affiliated with organisations
+  in Potsdam, aiming to analyse various aspects of software
+  FAIRness, documentation quality, and software development
+  practices. 
+keywords:
+  - research software
+  - 'Software quality '
+  - 'empirical software engineering '
+  - FAIR4RS
+license: MIT
+commit: >-
+  https://github.com/Software-Engineering-Group-UP/SWORDS-template-UP/releases/tag/v1.0.0
+version: v1.0.0
+date-released: '2024-08-07'
