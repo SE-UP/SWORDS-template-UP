@@ -81,7 +81,19 @@ In the normal use case, you start with phase 1 and go through each phase as the 
 
 Use this citation for citing the SWORDS implementation of {INSERT YOUR ORGANISATION NAME}.
 ```
-{INSERT CITATION DETAILS}
+@software{Devkate_SWORDS_template_UP_2024,
+  author = {Devkate, Akshay and Lamprecht, Anna-Lena},
+  title = {{SWORDS template UP: Adopted and extended (software development practices)}},
+  institution = {University of Potsdam},
+  version = {v1.0.0},
+  year = {2024},
+  month = {8},
+  abstract = {This repository is used to collect and analyse GitHub repositories of researchers affiliated with organisations in Potsdam, aiming to analyse various aspects of software FAIRness, documentation quality, and software development practices.},
+  url = {https://github.com/Software-Engineering-Group-UP/SWORDS-template-UP/releases/tag/v1.0.0},
+  orcid = {https://orcid.org/0009-0004-9608-4479, https://orcid.org/0000-0003-1953-5606},
+  keywords = {research software, Software quality, empirical software engineering, FAIR4RS},
+  license = {MIT}
+}
 ```
 
 To cite the SWORDS project and the SWORDS template, use 
