@@ -79,7 +79,8 @@ In the normal use case, you start with phase 1 and go through each phase as the 
 
 ## Citation
 
-Use this citation for citing the SWORDS implementation of {INSERT YOUR ORGANISATION NAME}.
+Use this citation for citing the SWORDS implementation for paper [Software FAIRness, Documentation and Development Practices in Potsdam Researchers' GitHub Repositories ](https://github.com/Software-Engineering-Group-UP/potsdam-research-repos)
+.
 ```
 @software{Devkate_SWORDS_template_UP_2024,
   author = {Devkate, Akshay and Lamprecht, Anna-Lena},
