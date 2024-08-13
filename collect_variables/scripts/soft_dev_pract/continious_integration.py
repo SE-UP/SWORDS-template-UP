@@ -1,5 +1,5 @@
 """
-This script checks for the presence of folders .github (github actions)
+This script checks for the presence of folders .github (GitHub Actions)
 in the root directory of GitHub repositories listed in a CSV file.
 It uses the GitHub API to access the repositories and updates the CSV file with the results.
 """
@@ -20,9 +20,8 @@ env_path = os.path.join(script_dir, '..', '..', '..', '.env')
 # Load the .env file
 load_dotenv(dotenv_path=env_path, override=True)
 
-# Get the GITHUB_TOKEN and GITHUB_USERNAME from the .env file
+# Get the GITHUB_TOKEN from the .env file
 token = os.getenv('GITHUB_TOKEN')
-username = os.getenv('GITHUB_USERNAME')
 
 # Use the token to create a Github instance
 g = Github(token)
@@ -125,6 +124,19 @@ def check_azure_pipelines(repo):
         return None
 
 
+def handle_rate_limit_error(exception):
+    """
+    Handle GitHub API rate limit exceeded error by sleeping for 20 minutes.
+
+    Parameters:
+    exception (GithubException): The exception object that contains the error details.
+    """
+    error_message = exception.data.get("message", "")
+    if "API rate limit exceeded" in error_message:
+        print("Rate limit exceeded. Sleeping for 20 minutes...")
+        time.sleep(20 * 60)  # Sleep for 20 minutes
+
+
 def main(input_csv_file, output_csv_file):
     """
     Main function to check for continuous integration tools in GitHub repositories.
@@ -133,7 +145,8 @@ def main(input_csv_file, output_csv_file):
     input_csv_file (str): Path to the input CSV file.
     output_csv_file (str): Path to the output CSV file.
     """
-    data_frame = pd.read_csv(input_csv_file, sep=',', on_bad_lines='warn')
+    data_frame = pd.read_csv(input_csv_file, sep=';', on_bad_lines='warn')
+
     if 'continuous_integration' not in data_frame.columns:
         data_frame['continuous_integration'] = False
     if 'ci_tool' not in data_frame.columns:
@@ -150,9 +163,17 @@ def main(input_csv_file, output_csv_file):
     count = 0
     for index, row in data_frame.iterrows():
         url = row['html_url']
-        if pd.isna(url):
-            print("Skipping row with missing URL")
+        
+        # Skip empty or null URLs
+        if pd.isna(url) or not url.strip():
+            print(f"Skipping row with missing or null URL at index {index}")
             continue
+
+        # Process only GitHub URLs
+        if not url.startswith('https://github.com/'):
+            print(f"Skipping non-GitHub URL: {url}")
+            continue
+
         print(f"Working on repository: {url}")
         repo_name = url.split('https://github.com/')[-1]
         try:
@@ -167,14 +188,8 @@ def main(input_csv_file, output_csv_file):
             print(f"Repositories completed: {count}")
             # Save to CSV after each repository is checked
             data_frame.to_csv(output_csv_file, index=False)
-        except RateLimitExceededException:
-            print("Rate limit exceeded. Sleeping until reset...")
-            reset_time = g.rate_limiting_resettime
-            sleep_time = reset_time - int(time.time())
-            if sleep_time > 0:
-                time.sleep(sleep_time)
-            continue
         except GithubException as github_exception:
+            handle_rate_limit_error(github_exception)
             print(f"Error accessing repository {repo_name}: {github_exception}")
             continue
 
@@ -184,7 +199,7 @@ def main(input_csv_file, output_csv_file):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description='Check for GitHub Actions in GitHub repositories.')
+        description='Check for CI tools in GitHub repositories.')
     parser.add_argument(
         '--input',
         default='../collect_repositories/results/repositories_filtered.csv',
