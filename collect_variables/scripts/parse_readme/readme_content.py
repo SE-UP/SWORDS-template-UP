@@ -30,6 +30,44 @@ def is_github_url(url):
     """
     return url.startswith('https://github.com')
 
+def check_rate_limit(api):
+    """
+    Check the GitHub API rate limit and sleep if the limit is close to or has been exceeded.
+
+    Args:
+        api (GhApi): The GitHub API client.
+    """
+    try:
+        rate_limit = api.rate_limit.get_rate_limit()
+        remaining = rate_limit.core.remaining
+        reset_time = rate_limit.core.reset
+        if remaining == 0:
+            wait_time = max(0, reset_time - time.time())
+            print(f"Rate limit exceeded. Waiting for {wait_time} seconds.")
+            time.sleep(wait_time + 1)  # Sleep a bit longer to ensure the limit is reset
+    except Exception as e:
+        print(f"Error checking rate limit: {e}. Sleeping for 20 minutes.")
+        time.sleep(20 * 60)  # Sleep for 20 minutes
+
+def handle_rate_limit(response=None):
+    """
+    Handle GitHub API rate limiting by waiting for the rate limit to reset.
+    
+    Args:
+        response (requests.Response, optional): The HTTP response object containing rate limit info.
+    """
+    if response:
+        remaining = int(response.headers.get('X-RateLimit-Remaining', 0))
+        reset_time = int(response.headers.get('X-RateLimit-Reset', 0))
+        if remaining == 0:
+            wait_time = max(0, reset_time - time.time())
+            print(f"Rate limit exceeded. Waiting for {wait_time} seconds.")
+            time.sleep(wait_time + 1)  # Sleep a bit longer to ensure the limit is reset
+    else:
+        # Default sleep time if no response headers are available
+        print("Rate limit exceeded or unknown error. Sleeping for 20 minutes...")
+        time.sleep(20 * 60)  # Sleep for 20 minutes
+
 def get_content_from_github(api, owner, repo):
     """
     Fetch the contents of a GitHub repository.
@@ -43,11 +81,16 @@ def get_content_from_github(api, owner, repo):
         list: List of contents of the repository.
     """
     try:
+        check_rate_limit(api)  # Check rate limit before making API call
         return api.repos.get_content(owner, repo, path="")
     except HTTPError as e:
-        if e.response.status_code in {404, 403}:
+        if e.response.status_code == 403:
+            handle_rate_limit(e.response)  # Handle rate limit errors
+        else:
             print(f"HTTP error occurred: {e}. Skipping this repository.")
-        return None
+    except Timeout:
+        print(f"Timeout when trying to access the repository.")
+    return None
 
 def download_readme_content(content):
     """
@@ -94,19 +137,7 @@ def get_readme_content(github_url, api):
     owner, repo = path_parts[0], path_parts[1]
     print(f"Processing repository: {owner}/{repo} ({github_url})")
 
-    while True:
-        try:
-            contents = get_content_from_github(api, owner, repo)
-            break
-        except HTTPError as e:
-            if e.response.status_code == 403 and 'rate limit' in e.response.text.lower():
-                print("API rate limit exceeded. Sleeping for 20 minutes...")
-                time.sleep(20 * 60)  # Sleep for 20 minutes
-                continue
-            else:
-                print(f"HTTP error occurred: {e}. Skipping this repository.")
-                return None
-
+    contents = get_content_from_github(api, owner, repo)
     if contents is None:
         return None
 
@@ -114,6 +145,8 @@ def get_readme_content(github_url, api):
         if content.name.lower().startswith('readme'):
             readme_content = download_readme_content(content)
             if readme_content:
+                # Replace problematic characters in README content
+                readme_content = readme_content.replace(',', ' ').replace(';', ' ')
                 return f"README_start\n{readme_content}\nREADME_end"
 
     return None
@@ -147,8 +180,9 @@ def process_csv_file(input_csv, output_csv):
                 print(f"Processing URL: {html_url}")
                 readme_content = get_readme_content(html_url, api)
                 if readme_content:
-                    readme_content = readme_content.replace('\n', ' ')
-                chunk.at[i, 'readme'] = readme_content
+                    chunk.at[i, 'readme'] = readme_content
+                else:
+                    chunk.at[i, 'readme'] = None
             else:
                 print(f"Skipping non-GitHub URL: {html_url}")
                 chunk.at[i, 'readme'] = None
