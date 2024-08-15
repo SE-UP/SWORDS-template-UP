@@ -17,11 +17,10 @@ from dotenv import load_dotenv
 from ghapi.all import GhApi
 from requests.exceptions import HTTPError, Timeout
 
-
 def handle_rate_limit(response):
     """
     Handle GitHub API rate limiting by waiting until the limit resets.
-
+    
     Args:
         response (requests.Response): The HTTP response object.
     """
@@ -32,7 +31,6 @@ def handle_rate_limit(response):
             wait_time = max(0, reset_time - time.time())
             print(f"Rate limit exceeded. Waiting for {wait_time} seconds.")
             time.sleep(wait_time + 1)  # Wait a bit longer to ensure the limit is reset
-
 
 def is_github_url(url):
     """
@@ -46,7 +44,6 @@ def is_github_url(url):
     """
     return url.startswith('https://github.com')
 
-
 def get_content_from_github(api, owner, repo):
     """
     Fetch the contents of a GitHub repository.
@@ -57,7 +54,7 @@ def get_content_from_github(api, owner, repo):
         repo (str): The repository name.
 
     Returns:
-        list: List of contents of the repository.
+        list: List of contents of the repository, or None if an error occurs.
     """
     try:
         return api.repos.get_content(owner, repo, path="")
@@ -65,8 +62,9 @@ def get_content_from_github(api, owner, repo):
         if e.response.status_code in {404, 403}:
             handle_rate_limit(e.response)
         print(f"HTTP error occurred: {e}. Skipping this repository.")
+    except Exception as e:
+        print(f"An error occurred: {e}. Skipping this repository.")
     return None
-
 
 def download_readme_content(content):
     """
@@ -88,25 +86,21 @@ def download_readme_content(content):
             return response.text
         except Timeout:
             print(f"Timeout when trying to download {content.download_url}")
+        except Exception as e:
+            print(f"An error occurred while downloading README: {e}")
     return None
 
-
-def clean_readme_content(content):
+def clean_readme_content(readme_content):
     """
-    Clean the README content by removing special characters that can cause delimiter issues.
+    Clean the README content by removing problematic special characters.
 
     Args:
-        content (str): The README content to clean.
+        readme_content (str): The raw README content.
 
     Returns:
         str: The cleaned README content.
     """
-    if content:
-        # Replace commas, semicolons, and newlines with spaces
-        cleaned_content = content.replace(',', ' ').replace(';', ' ').replace('\n', ' ')
-        return cleaned_content
-    return content
-
+    return readme_content.replace(',', ' ').replace(';', ' ').replace('\n', ' ')
 
 def get_readme_content(github_url, api):
     """
@@ -140,11 +134,9 @@ def get_readme_content(github_url, api):
         if content.name.lower().startswith('readme'):
             readme_content = download_readme_content(content)
             if readme_content:
-                cleaned_content = clean_readme_content(readme_content)
-                return f"README_start {cleaned_content} README_end"
+                return f"README_start\n{clean_readme_content(readme_content)}\nREADME_end"
 
     return None
-
 
 def process_csv_file(input_csv, output_csv):
     """
@@ -174,7 +166,7 @@ def process_csv_file(input_csv, output_csv):
             if is_github_url(html_url):
                 print(f"Processing URL: {html_url}")
                 readme_content = get_readme_content(html_url, api)
-                chunk.at[i, 'readme'] = readme_content
+                chunk.at[i, 'readme'] = readme_content if readme_content else None
             else:
                 print(f"Skipping non-GitHub URL: {html_url}")
                 chunk.at[i, 'readme'] = None
@@ -183,7 +175,6 @@ def process_csv_file(input_csv, output_csv):
     dataframe = pd.concat(chunks, ignore_index=True)
     dataframe.to_csv(output_csv, index=False)
     print(f"Processing complete. Updated CSV saved to {output_csv}")
-
 
 if __name__ == '__main__':
     DESCRIPTION = 'Fetch and update the README content from repositories listed in a CSV file.'
