@@ -1,3 +1,11 @@
+"""
+Reads GitHub repository links from a given CSV file,
+fetches the README content, and stores the content in a
+new column (single cell per README) in the CSV file.
+Drops special characters , and ; (which causes delimiter
+error) before saving the content to CSV file.
+"""
+
 import os
 import pandas as pd
 import logging
@@ -10,13 +18,13 @@ from dotenv import load_dotenv
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Internal delimiter for reading CSV
-CSV_DELIMITER = ','  # Change this to the delimiter used in your CSV file
+CSV_DELIMITER = ';'  # Change this to the delimiter used in your CSV file
 
 def is_github_url(url):
     """
     Check if a URL is a GitHub repository URL.
     """
-    return url.startswith('https://github.com/')
+    return isinstance(url, str) and url.startswith('https://github.com/')
 
 def get_owner_repo_from_url(url):
     """
@@ -64,7 +72,8 @@ def process_csv(input_csv, output_csv):
     """
     Process the CSV file to fetch the README content from repositories and update the CSV.
     """
-    df = pd.read_csv(input_csv, delimiter=';')
+    df = pd.read_csv(input_csv, delimiter=CSV_DELIMITER)
+
     if 'html_url' not in df.columns:
         logging.error("Input CSV must contain 'html_url' column.")
         return
@@ -82,6 +91,13 @@ def process_csv(input_csv, output_csv):
     readme_contents = []
     
     for url in df['html_url']:
+        if pd.isna(url):
+            logging.warning("Skipping NaN value in 'html_url' column.")
+            readme_contents.append('')
+            continue
+
+        url = str(url).strip()  # Convert to string and strip whitespace
+
         if not is_github_url(url):
             logging.warning(f"Skipping non-GitHub URL: {url}")
             readme_contents.append('')
@@ -94,9 +110,13 @@ def process_csv(input_csv, output_csv):
             continue
 
         logging.info(f"Processing URL: {url}")
-        readme_content = fetch_readme_content(owner, repo, token)
-        readme_contents.append(readme_content)
-    
+        try:
+            readme_content = fetch_readme_content(owner, repo, token)
+            readme_contents.append(readme_content)
+        except Exception as e:
+            logging.error(f"Failed to fetch README for {url}: {e}")
+            readme_contents.append('')
+
     df['readme'] = readme_contents
 
     # Clean the README content
