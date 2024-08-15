@@ -1,7 +1,9 @@
 """
-Reads github repostory links from given csv file and 
-fetch the README content, and stores the content in a
- new column (single cell per readme) in the CSV file.
+Reads GitHub repository links from a given CSV file,
+fetches the README content, and stores the content in a
+new column (single cell per README) in the CSV file.
+Drops special characters , and ; (which causes delimiter
+error) before saving the content to csv file 
 """
 
 import os
@@ -15,10 +17,11 @@ from dotenv import load_dotenv
 from ghapi.all import GhApi
 from requests.exceptions import HTTPError, Timeout
 
+
 def handle_rate_limit(response):
     """
     Handle GitHub API rate limiting by waiting until the limit resets.
-    
+
     Args:
         response (requests.Response): The HTTP response object.
     """
@@ -29,6 +32,7 @@ def handle_rate_limit(response):
             wait_time = max(0, reset_time - time.time())
             print(f"Rate limit exceeded. Waiting for {wait_time} seconds.")
             time.sleep(wait_time + 1)  # Wait a bit longer to ensure the limit is reset
+
 
 def is_github_url(url):
     """
@@ -41,6 +45,7 @@ def is_github_url(url):
         bool: True if the URL is a GitHub URL, False otherwise.
     """
     return url.startswith('https://github.com')
+
 
 def get_content_from_github(api, owner, repo):
     """
@@ -61,6 +66,7 @@ def get_content_from_github(api, owner, repo):
             handle_rate_limit(e.response)
         print(f"HTTP error occurred: {e}. Skipping this repository.")
     return None
+
 
 def download_readme_content(content):
     """
@@ -83,6 +89,24 @@ def download_readme_content(content):
         except Timeout:
             print(f"Timeout when trying to download {content.download_url}")
     return None
+
+
+def clean_readme_content(content):
+    """
+    Clean the README content by removing special characters that can cause delimiter issues.
+
+    Args:
+        content (str): The README content to clean.
+
+    Returns:
+        str: The cleaned README content.
+    """
+    if content:
+        # Replace commas, semicolons, and newlines with spaces
+        cleaned_content = content.replace(',', ' ').replace(';', ' ').replace('\n', ' ')
+        return cleaned_content
+    return content
+
 
 def get_readme_content(github_url, api):
     """
@@ -116,9 +140,11 @@ def get_readme_content(github_url, api):
         if content.name.lower().startswith('readme'):
             readme_content = download_readme_content(content)
             if readme_content:
-                return f"README_start\n{readme_content}\nREADME_end"
+                cleaned_content = clean_readme_content(readme_content)
+                return f"README_start {cleaned_content} README_end"
 
     return None
+
 
 def process_csv_file(input_csv, output_csv):
     """
@@ -148,8 +174,6 @@ def process_csv_file(input_csv, output_csv):
             if is_github_url(html_url):
                 print(f"Processing URL: {html_url}")
                 readme_content = get_readme_content(html_url, api)
-                if readme_content:
-                    readme_content = readme_content.replace('\n', ' ')
                 chunk.at[i, 'readme'] = readme_content
             else:
                 print(f"Skipping non-GitHub URL: {html_url}")
@@ -159,6 +183,7 @@ def process_csv_file(input_csv, output_csv):
     dataframe = pd.concat(chunks, ignore_index=True)
     dataframe.to_csv(output_csv, index=False)
     print(f"Processing complete. Updated CSV saved to {output_csv}")
+
 
 if __name__ == '__main__':
     DESCRIPTION = 'Fetch and update the README content from repositories listed in a CSV file.'
