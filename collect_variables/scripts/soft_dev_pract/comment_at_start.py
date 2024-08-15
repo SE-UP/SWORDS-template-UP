@@ -6,7 +6,6 @@ source code files in GitHub repositories.
 import os
 import argparse
 import time
-from urllib.parse import urlparse
 import pandas as pd
 import requests
 from dotenv import load_dotenv
@@ -120,9 +119,9 @@ def analyze_repositories(input_csv, output_csv):
     for index, row in df.iterrows():
         repo_url = row['html_url']
 
-        # Skip non-GitHub URLs
-        if not repo_url.startswith('https://github.com/'):
-            print(f"Skipping non-GitHub URL: {repo_url}")
+        # Skip rows with missing or non-string URLs
+        if not isinstance(repo_url, str) or not repo_url.startswith('https://github.com/'):
+            print(f"Skipping non-GitHub or invalid URL: {repo_url}")
             continue
 
         repo_name = repo_url.split('https://github.com/')[-1]
@@ -175,6 +174,7 @@ def analyze_repositories(input_csv, output_csv):
             print(f"HTTP error occurred for repository {repo_url}: {http_err}")
         except Exception as error:
             print(f"Error processing repository {repo_url}: {error}")
+            continue
 
     # Save the final dataframe to the output CSV file
     df.to_csv(output_csv, index=False)
