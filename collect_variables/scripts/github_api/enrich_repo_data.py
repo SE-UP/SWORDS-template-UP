@@ -1,9 +1,9 @@
 """
 This script extracts metadata from GitHub repositories listed in a CSV file.
-It uses the GitHub API to fetch information such as stars, forks, issues, contributors,
-and download counts for each repository. The input and output CSV file paths are
-specified using command-line arguments. The script handles pagination for contributors,
-manages API rate limits (sleeps for 15 minutes if rate limit is reached), and outputs the results
+It uses the GitHub API to fetch information such as stars, forks, issues,
+contributors, and download counts for each repository. The input and output CSV
+file paths are specified using command-line arguments. The script handles
+pagination for contributors, manages API rate limits, and outputs the results
 to a specified CSV file.
 
 Usage:
@@ -16,7 +16,9 @@ Dependencies:
     - argparse
     - chardet
 
-The script handles API rate limit errors (HTTP 403) by sleeping for 15 minutes before retrying.
+The script manages API rate limit errors (HTTP 403) by waiting until the rate 
+limit is reset before retrying. If it cannot fetch data for some URLs, it leaves 
+the metadata fields empty while keeping the original data intact.
 """
 
 import os
@@ -27,6 +29,7 @@ import argparse
 from ghapi.all import GhApi
 from dotenv import load_dotenv
 from fastcore.net import HTTP403ForbiddenError
+
 
 # Load GitHub token from .env file
 script_dir = os.path.dirname(os.path.realpath(__file__))
@@ -61,9 +64,9 @@ def detect_encoding(file_path):
 
 def handle_rate_limit():
     """
-    Handles the GitHub API rate limit by sleeping for 15 minutes when the limit is reached.
-    
-    This function is triggered when an API rate limit error (HTTP 403) occurs.
+    Handles the GitHub API rate limit by sleeping for 15 minutes when the limit
+    is reached. This function is triggered when an API rate limit error
+    (HTTP 403) occurs.
     """
     print('API rate limit exceeded. Sleeping for 15 minutes...')
     time.sleep(15 * 60)  # Sleep for 15 minutes
@@ -71,7 +74,8 @@ def handle_rate_limit():
 
 def get_repo_metadata(repo_url):
     """
-    Extract metadata from a GitHub repository URL, including contributors and downloads.
+    Extracts metadata from a GitHub repository URL, including contributors and
+    download counts.
 
     Args:
         repo_url (str): The URL of the GitHub repository.
@@ -101,7 +105,8 @@ def get_repo_metadata(repo_url):
 
         # Extract contributor usernames and their contribution counts
         contributor_list = ', '.join(
-            [f'{contrib.login} ({contrib.contributions} contributions)' for contrib in contributors]
+            [f'{contrib.login} ({contrib.contributions} contributions)'
+             for contrib in contributors]
         )
 
         # Get number of contributors
@@ -110,13 +115,15 @@ def get_repo_metadata(repo_url):
         # Fetch releases for download counts
         try:
             releases = api.repos.list_releases(owner, repo_name)
-            total_downloads = sum(asset.download_count for release in releases for asset in release.assets)
+            total_downloads = sum(asset.download_count
+                                  for release in releases
+                                  for asset in release.assets)
         except Exception:
             total_downloads = 'N/A'
 
         # Extract relevant metadata
         metadata = {
-            'URL': repo_url,
+            'html_url': repo_url,  # Use 'html_url' as the key for merging
             'Repository Name': repo_data.name,
             'Full Name': repo_data.full_name,
             'Description': repo_data.description or 'N/A',
@@ -131,33 +138,10 @@ def get_repo_metadata(repo_url):
             'Pushed Date': repo_data.pushed_at,
             'Default Branch': repo_data.default_branch,
             'Size': repo_data.size,
-            'Is Private': repo_data.private,
-            'Has Issues': repo_data.has_issues,
-            'Has Projects': repo_data.has_projects,
-            'Has Wiki': repo_data.has_wiki,
-            'Has Pages': repo_data.has_pages,
-            'Has Downloads': repo_data.has_downloads,
-            'Archived': repo_data.archived,
-            'Disabled': repo_data.disabled,
-            'Allow Forking': repo_data.allow_forking,
-            'Is Template': repo_data.is_template,
-            'Visibility': repo_data.visibility,
-            'Subscribers Count': repo_data.subscribers_count,
-            'Homepage URL': repo_data.homepage or 'N/A',
-            'Mirror URL': repo_data.mirror_url or 'N/A',
-            'Topics': ', '.join(repo_data.topics) if repo_data.topics else 'N/A',
             'Contributors': contributor_list or 'No contributors found',
             'Number of Contributors': num_contributors,
             'Total Downloads': total_downloads
         }
-
-        # Safely check if the repository has releases
-        try:
-            metadata['Latest Release'] = (
-                api.repos.get_latest_release(owner, repo_name).name if repo_data.has_releases else 'N/A'
-            )
-        except Exception:
-            metadata['Latest Release'] = 'N/A'
 
         return metadata
 
@@ -187,10 +171,13 @@ def main(input_csv_path, output_csv_path):
 
     # Try reading the input CSV file with detected encoding and comma delimiter
     try:
-        df = pd.read_csv(input_csv_path, encoding=encoding, delimiter=';')
+        df = pd.read_csv(input_csv_path, encoding=encoding, delimiter=',', on_bad_lines='skip')
     except Exception as error:
         print(f'Failed to read the CSV file: {error}')
         return
+
+    # Print out the columns to debug
+    print("Columns in the original DataFrame (df):", df.columns)
 
     # List to store metadata dictionaries
     metadata_list = []
@@ -205,9 +192,17 @@ def main(input_csv_path, output_csv_path):
         else:
             print(f'Skipping invalid or non-GitHub URL at row {idx}: {url}')
 
-    # Save the metadata to a new CSV file
+    # Create a DataFrame for the new metadata
     metadata_df = pd.DataFrame(metadata_list)
-    metadata_df.to_csv(output_csv_path, index=False)
+
+    # Print out the columns in the metadata DataFrame to debug
+    print("Columns in the metadata DataFrame (metadata_df):", metadata_df.columns)
+
+    # Merge the original dataframe with the new metadata based on 'html_url'
+    merged_df = pd.merge(df, metadata_df, on='html_url', how='left')
+
+    # Save the merged data to a new CSV file
+    merged_df.to_csv(output_csv_path, index=False)
 
     print(f'Metadata extraction complete. Saved to {output_csv_path}')
     print('Script ended.')
@@ -218,8 +213,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='Extract metadata from GitHub repository URLs in a CSV file.'
     )
-    parser.add_argument('--input', type=str, required=True, help='Path to the input CSV file containing GitHub URLs.')
-    parser.add_argument('--output', type=str, default='output.csv', help='Path to the output CSV file.')
+    parser.add_argument('--input', type=str, required=True,
+                        help='Path to the input CSV file containing GitHub URLs.')
+    parser.add_argument('--output', type=str, default='output.csv',
+                        help='Path to the output CSV file.')
 
     # Parse arguments
     args = parser.parse_args()
