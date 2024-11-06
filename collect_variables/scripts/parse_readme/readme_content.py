@@ -13,6 +13,8 @@ import time
 from requests import get
 from requests.exceptions import HTTPError
 from dotenv import load_dotenv
+import argparse
+
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -20,11 +22,13 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 # Internal delimiter for reading CSV
 CSV_DELIMITER = ';'  # Change this to the delimiter used in your CSV file
 
+
 def is_github_url(url):
     """
     Check if a URL is a GitHub repository URL.
     """
     return isinstance(url, str) and url.startswith('https://github.com/')
+
 
 def get_owner_repo_from_url(url):
     """
@@ -39,6 +43,7 @@ def get_owner_repo_from_url(url):
         return owner, repo
     return None, None
 
+
 def fetch_readme_content(owner, repo, token):
     """
     Fetch the README file content from the root directory of a GitHub repository.
@@ -49,7 +54,6 @@ def fetch_readme_content(owner, repo, token):
         response = get(f'https://api.github.com/repos/{owner}/{repo}/contents', headers=headers)
         response.raise_for_status()
         contents = response.json()
-        
         # Find README file
         for content in contents:
             if content['type'] == 'file' and content['name'].lower() in ['readme.md', 'readme', 'readme.rst']:
@@ -65,8 +69,8 @@ def fetch_readme_content(owner, repo, token):
         logging.error(f"HTTP error: {e}")
     except Exception as e:
         logging.error(f"Error: {e}")
-    
     return ""
+
 
 def process_csv(input_csv, output_csv):
     """
@@ -83,13 +87,11 @@ def process_csv(input_csv, output_csv):
     env_path = os.path.join(script_dir, '..', '..', '..', '.env')
     load_dotenv(dotenv_path=env_path, override=True)
     token = os.getenv('GITHUB_TOKEN')
-    
     if not token:
         logging.error("GitHub token not found in .env file.")
         return
 
     readme_contents = []
-    
     for url in df['html_url']:
         if pd.isna(url):
             logging.warning("Skipping NaN value in 'html_url' column.")
@@ -125,9 +127,8 @@ def process_csv(input_csv, output_csv):
     df.to_csv(output_csv, index=False)
     logging.info(f"Processing complete. Updated CSV saved to {output_csv}")
 
-if __name__ == "__main__":
-    import argparse
 
+if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Fetch README content from GitHub repositories listed in a CSV file.")
     parser.add_argument('--input', required=True, help="Path to the input CSV file")
     parser.add_argument('--output', required=True, help="Path to the output CSV file")
