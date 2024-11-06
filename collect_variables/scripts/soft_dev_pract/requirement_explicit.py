@@ -1,14 +1,16 @@
 """
 This script utilizes the GitHub API to retrieve repository details
 and specific files (like requirements.txt, DESCRIPTION, CMakeLists.txt)
-that typically document project dependencies.
+that typically document project dependencies. It handles GitHub API rate
+limits by sleeping for 15 minutes if the limit is reached.
 """
 
 import argparse
 import os
-import csv
+import time
+import pandas as pd
 from dotenv import load_dotenv
-from github import Github
+from github import Github, GithubException, RateLimitExceededException
 
 # Get the directory of the current script
 script_dir = os.path.dirname(os.path.realpath(__file__))
@@ -47,27 +49,45 @@ def check_requirements(repository_url):
         # Get the programming language of the repository
         repository_language = repository.language
 
-        # Check if requirements are made explicit
-        if repository_language == 'Python':
-            repository.get_contents('requirements.txt')
-            return True
+        # Define the common dependency files
+        common_dependency_files = {
+            'Python': ['requirements.txt', 'Pipfile', 'pyproject.toml', 'setup.py'],
+            'R': ['DESCRIPTION', 'renv.lock', 'packrat/packrat.lock'],
+            'C++': ['CMakeLists.txt', 'conanfile.txt', 'vcpkg.json']
+        }
 
-        if repository_language == 'R':
-            try:
-                repository.get_contents('DESCRIPTION')
-            except Exception:
-                repository.get_contents('packrat/packrat.lock')
-            return True
-
-        if repository_language == 'C++':
-            repository.get_contents('CMakeLists.txt')
-            return True
-
+        # Check for each dependency file in the repository based on the language
+        if repository_language in common_dependency_files:
+            for dependency_file in common_dependency_files[repository_language]:
+                try:
+                    repository.get_contents(dependency_file)
+                    return True
+                except GithubException:
+                    continue
         return False
+
+    except RateLimitExceededException:
+        # Handle the rate limit error and pause for 15 minutes
+        print("GitHub API rate limit exceeded. Sleeping for 15 minutes...")
+        time.sleep(15 * 60)  # Sleep for 15 minutes
+        return check_requirements(repository_url)  # Retry the same repository
 
     except Exception as e:
         print(f"Failed to check requirements for {repository_url}: {str(e)}")
-        return False
+        return None  # Return None if there's an error
+
+def is_github_url(url):
+    """
+    Check if a URL is a valid GitHub URL.
+    Args:
+    - url (str or None): The URL to check.
+
+    Returns:
+    - bool: True if the URL is a valid GitHub repository URL, False otherwise.
+    """
+    if isinstance(url, str):
+        return url.startswith("https://github.com/")
+    return False
 
 if __name__ == "__main__":
     # Create an ArgumentParser object
@@ -93,28 +113,29 @@ if __name__ == "__main__":
     # Parse command-line arguments
     command_line_arguments = argument_parser.parse_args()
 
-    # Initialize list to store results
-    results_list = []
+    # Read the input CSV file using pandas
+    input_data = pd.read_csv(command_line_arguments.input, sep=',')
 
-    # Read input CSV file
-    with open(command_line_arguments.input, 'r', newline='', encoding='utf-8') as input_csv_file:
-        csv_reader = csv.DictReader(input_csv_file)
-        for row in csv_reader:
-            # Use a different variable name in the inner scope
-            repo_url = row['html_url']
+    # Add a new column for the results
+    input_data['requirements_defined'] = ''
 
-            # Check requirements for each repository using 'repo_url'
-            result = check_requirements(repo_url)
+    # Loop through each row of the DataFrame
+    for index, row in input_data.iterrows():
+        repo_url = row['html_url']
 
-            # Append result to results list
-            results_list.append({'repository_url': repo_url, 'requirements_defined': result})
+        # Skip rows with missing or non-string GitHub URLs
+        if not is_github_url(repo_url):
+            print(f"Skipping invalid or non-GitHub URL: {repo_url}")
+            input_data.at[index, 'requirements_defined'] = None  # Leave the field empty
+            continue
 
-    # Write results to output CSV file
-    with open(command_line_arguments.output, 'w', newline='', encoding='utf-8') as output_csv_file:
-        csv_fieldnames = ['repository_url', 'requirements_defined']
-        csv_writer = csv.DictWriter(output_csv_file, fieldnames=csv_fieldnames)
-        csv_writer.writeheader()
-        for result in results_list:
-            csv_writer.writerow(result)
+        # Check requirements for each repository using 'repo_url'
+        result = check_requirements(repo_url)
+
+        # Set the result in the new column (leave as None if an error occurred)
+        input_data.at[index, 'requirements_defined'] = result
+
+    # Write the updated DataFrame to the output CSV file, keeping all original columns
+    input_data.to_csv(command_line_arguments.output, index=False)
 
     print(f"Results saved to {command_line_arguments.output}")

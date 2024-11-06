@@ -72,7 +72,7 @@ def process_csv(input_csv, output_csv):
     """
     Process the CSV file to fetch the README content from repositories and update the CSV.
     """
-    df = pd.read_csv(input_csv, delimiter=CSV_DELIMITER)
+    df = pd.read_csv(input_csv, delimiter=CSV_DELIMITER, encoding='ISO-8859-1')
 
     if 'html_url' not in df.columns:
         logging.error("Input CSV must contain 'html_url' column.")
