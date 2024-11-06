@@ -278,7 +278,7 @@ YW4gZW1haWwgdG8gYXNyZXZpZXdAdXUubmwuCg==
 
 
 """
-Tests for readme_content.py
+Tests for readme_content.py (test get_readme_content)
 """
 
 def test_is_github_url():
