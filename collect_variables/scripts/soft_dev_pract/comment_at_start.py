@@ -4,13 +4,17 @@ source code files in GitHub repositories.
 """
 
 import os
-import argparse
 import time
+import logging
+import argparse
 import pandas as pd
 import requests
 from dotenv import load_dotenv
-from ghapi.all import GhApi
 from requests.exceptions import HTTPError
+from ghapi.all import GhApi
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Get the directory of the current script
 script_dir = os.path.dirname(os.path.realpath(__file__))
@@ -57,7 +61,7 @@ def fetch_repository_files(repo_name, headers):
                 elif item['type'] == 'dir':
                     get_files(item['url'])
         else:
-            print(f"Failed to fetch files from {url}: {response.status_code} - {response.text}")
+            logging.error("Failed to fetch files from %s: %s - %s", url, response.status_code, response.text)
 
     get_files(api_url)
     return repo_files
@@ -83,7 +87,7 @@ def check_comment_at_start(file_url, headers):
             prefixes = ['#', '//', '/*', "'''", '"', "#'"]
             return any(first_line.startswith(prefix) for prefix in prefixes)
     else:
-        print(f"Failed to fetch file {file_url}: {response.status_code} - {response.text}")
+        logging.error("Failed to fetch file %s: %s - %s", file_url, response.status_code, response.text)
     return False
 
 
@@ -96,6 +100,38 @@ def determine_comment_category(percentage):
     if 25 < percentage <= 50:
         return 'some'
     return 'none'
+
+
+def process_repository(repo_url, headers):
+    """Processes a single repository for analysis."""
+    repo_name = repo_url.split('https://github.com/')[-1]
+    owner, repo = repo_name.split('/')
+
+    # Handle GitHub rate limit
+    rate_limit = api.rate_limit.get()
+    if rate_limit['resources']['core']['remaining'] == 0:
+        logging.info("Rate limit exceeded. Sleeping for %d minutes.", RATE_LIMIT_SLEEP_TIME / 60)
+        time.sleep(RATE_LIMIT_SLEEP_TIME)
+
+    # Fetch the programming language of the repository
+    repo_info = api.repos.get(owner, repo)
+    language = repo_info.language
+
+    if language not in ['Python', 'R', 'C++']:
+        logging.info("Skipping repository %s due to unsupported language: %s", repo_name, language)
+        return None, None, None, None
+
+    repo_files = fetch_repository_files(repo_name, headers)
+    total_files = len(repo_files)
+    commented_files = sum(
+        check_comment_at_start(file_url, headers)
+        for file_url in repo_files
+    )
+
+    comment_percentage = (commented_files / total_files) * 100 if total_files > 0 else 0
+    comment_category = determine_comment_category(comment_percentage)
+
+    return comment_percentage, comment_category, repo_name, language
 
 
 def analyze_repositories(input_csv, output_csv):
@@ -125,47 +161,22 @@ def analyze_repositories(input_csv, output_csv):
 
         # Skip rows with missing or non-string URLs
         if not isinstance(repo_url, str) or not repo_url.startswith('https://github.com/'):
-            print(f"Skipping non-GitHub or invalid URL: {repo_url}")
+            logging.warning("Skipping non-GitHub or invalid URL: %s", repo_url)
             continue
 
-        repo_name = repo_url.split('https://github.com/')[-1]
-
+        logging.info("Processing repository %d/%d: %s", index + 1, total_repos, repo_url)
         try:
-            # Handle GitHub rate limit
-            rate_limit = api.rate_limit.get()
-            if rate_limit['resources']['core']['remaining'] == 0:
-                print(f"Rate limit exceeded. Sleeping for {RATE_LIMIT_SLEEP_TIME / 60} minutes.")
-                time.sleep(RATE_LIMIT_SLEEP_TIME)
-
-            # Fetch the programming language of the repository
-            owner, repo = repo_name.split('/')
-            repo_info = api.repos.get(owner, repo)
-            language = repo_info.language
-
-            if language not in ['Python', 'R', 'C++']:
-                print(f"Skipping repository {repo_name} due to unsupported language: {language}")
-                continue
-
-            print(f"Processing repository {index+1}/{total_repos}: {repo_url}")
-            repo_files = fetch_repository_files(repo_name, headers)
-            total_files = len(repo_files)
-            commented_files = sum(
-                check_comment_at_start(file_url, headers)
-                for file_url in repo_files
-            )
-
-            comment_percentage = (commented_files / total_files) * 100 if total_files > 0 else 0
-            comment_category = determine_comment_category(comment_percentage)
-
-            data_frame.at[index, 'comment_percentage'] = comment_percentage
-            data_frame.at[index, 'comment_category'] = comment_category
+            comment_percentage, comment_category, repo_name, language = process_repository(repo_url, headers)
+            if comment_percentage is not None and comment_category is not None:
+                data_frame.at[index, 'comment_percentage'] = comment_percentage
+                data_frame.at[index, 'comment_category'] = comment_category
 
             # Save progress to output CSV
             data_frame.to_csv(output_csv, index=False)
         except HTTPError as http_err:
-            print(f"HTTP error occurred for repository {repo_url}: {http_err}")
+            logging.error("HTTP error occurred for repository %s: %s", repo_url, http_err)
         except Exception as error:
-            print(f"Error processing repository {repo_url}: {error}")
+            logging.error("Error processing repository %s: %s", repo_url, error)
             continue
 
     # Save the final data frame to the output CSV file
