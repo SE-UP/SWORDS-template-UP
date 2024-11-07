@@ -133,7 +133,6 @@ def process_repository(repo_url, headers):
 
     return comment_percentage, comment_category
 
-
 def analyze_repositories(input_csv, output_csv):
     """
     Analyzes GitHub repositories for comments at the start of files.
@@ -166,7 +165,7 @@ def analyze_repositories(input_csv, output_csv):
 
         logging.info("Processing repository %d/%d: %s", index + 1, total_repos, repo_url)
         try:
-            comment_percentage, comment_category, repo_name, language = process_repository(repo_url, headers)
+            comment_percentage, comment_category = process_repository(repo_url, headers)
             if comment_percentage is not None and comment_category is not None:
                 data_frame.at[index, 'comment_percentage'] = comment_percentage
                 data_frame.at[index, 'comment_category'] = comment_category
