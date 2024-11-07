@@ -23,12 +23,13 @@ the metadata fields empty while keeping the original data intact.
 
 import os
 import time
-import pandas as pd
-import chardet
 import argparse
-from ghapi.all import GhApi
+import logging
+import pandas as pd
+import requests
 from dotenv import load_dotenv
-from fastcore.net import HTTP403ForbiddenError
+from requests.exceptions import HTTPError
+from ghapi.all import GhApi
 
 
 # Load GitHub token from .env file
