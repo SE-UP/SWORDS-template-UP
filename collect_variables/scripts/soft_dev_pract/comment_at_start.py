@@ -119,7 +119,7 @@ def process_repository(repo_url, headers):
 
     if language not in ['Python', 'R', 'C++']:
         logging.info("Skipping repository %s due to unsupported language: %s", repo_name, language)
-        return None, None, None, None
+        return None, None
 
     repo_files = fetch_repository_files(repo_name, headers)
     total_files = len(repo_files)
@@ -131,7 +131,7 @@ def process_repository(repo_url, headers):
     comment_percentage = (commented_files / total_files) * 100 if total_files > 0 else 0
     comment_category = determine_comment_category(comment_percentage)
 
-    return comment_percentage, comment_category, repo_name, language
+    return comment_percentage, comment_category
 
 
 def analyze_repositories(input_csv, output_csv):
