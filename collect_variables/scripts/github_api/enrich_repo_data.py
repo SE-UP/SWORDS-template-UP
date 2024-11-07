@@ -6,15 +6,12 @@ file paths are specified using command-line arguments. The script handles
 pagination for contributors, manages API rate limits, and outputs the results
 to a specified CSV file.
 
-Usage:
-    python script.py --input input.csv --output output.csv
-
 Dependencies:
-    - pandas
-    - ghapi
-    - python-dotenv
-    - argparse
-    - chardet
+- pandas
+- ghapi
+- python-dotenv
+- argparse
+- chardet
 
 The script manages API rate limit errors (HTTP 403) by waiting until the rate 
 limit is reset before retrying. If it cannot fetch data for some URLs, it leaves 
@@ -24,13 +21,10 @@ the metadata fields empty while keeping the original data intact.
 import os
 import time
 import argparse
-import logging
 import pandas as pd
-import requests
+import chardet  # Ensure chardet is imported
 from dotenv import load_dotenv
-from requests.exceptions import HTTPError
 from ghapi.all import GhApi
-
 
 # Load GitHub token from .env file
 script_dir = os.path.dirname(os.path.realpath(__file__))
@@ -66,8 +60,7 @@ def detect_encoding(file_path):
 def handle_rate_limit():
     """
     Handles the GitHub API rate limit by sleeping for 15 minutes when the limit
-    is reached. This function is triggered when an API rate limit error
-    (HTTP 403) occurs.
+    is reached.
     """
     print('API rate limit exceeded. Sleeping for 15 minutes...')
     time.sleep(15 * 60)  # Sleep for 15 minutes
@@ -119,11 +112,12 @@ def get_repo_metadata(repo_url):
             total_downloads = sum(asset.download_count
                                   for release in releases
                                   for asset in release.assets)
-        except Exception:
+        except Exception as download_error:
+            print(f'Error fetching downloads: {download_error}')
             total_downloads = 'N/A'
 
         # Extract relevant metadata
-        metadata = {
+        return {
             'html_url': repo_url,  # Use 'html_url' as the key for merging
             'Repository Name': repo_data.name,
             'Full Name': repo_data.full_name,
@@ -144,9 +138,7 @@ def get_repo_metadata(repo_url):
             'Total Downloads': total_downloads
         }
 
-        return metadata
-
-    except HTTP403ForbiddenError as http_error:
+    except GhApi.HTTP403ForbiddenError as http_error:
         # Handle rate limit errors and retry after sleeping
         print(f'Error: {http_error}')
         handle_rate_limit()  # Sleep for 15 minutes
@@ -172,19 +164,19 @@ def main(input_csv_path, output_csv_path):
 
     # Try reading the input CSV file with detected encoding and comma delimiter
     try:
-        df = pd.read_csv(input_csv_path, encoding=encoding, delimiter=',', on_bad_lines='skip')
+        input_df = pd.read_csv(input_csv_path, encoding=encoding, delimiter=',', on_bad_lines='skip')
     except Exception as error:
         print(f'Failed to read the CSV file: {error}')
         return
 
     # Print out the columns to debug
-    print("Columns in the original DataFrame (df):", df.columns)
+    print("Columns in the original DataFrame (input_df):", input_df.columns)
 
     # List to store metadata dictionaries
     metadata_list = []
 
     # Iterate through URLs in the DataFrame, drop NaN values
-    for idx, url in df['html_url'].dropna().items():
+    for idx, url in input_df['html_url'].dropna().items():
         # Ensure the URL is a string and check if it's a GitHub URL
         if isinstance(url, str) and 'github.com' in url:
             metadata = get_repo_metadata(url)
@@ -200,7 +192,7 @@ def main(input_csv_path, output_csv_path):
     print("Columns in the metadata DataFrame (metadata_df):", metadata_df.columns)
 
     # Merge the original dataframe with the new metadata based on 'html_url'
-    merged_df = pd.merge(df, metadata_df, on='html_url', how='left')
+    merged_df = pd.merge(input_df, metadata_df, on='html_url', how='left')
 
     # Save the merged data to a new CSV file
     merged_df.to_csv(output_csv_path, index=False)
