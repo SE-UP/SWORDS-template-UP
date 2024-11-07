@@ -43,8 +43,8 @@ def fetch_repository_files(repo_name, headers):
     repo_files = []
     api_url = f'https://api.github.com/repos/{repo_name}/contents'
 
-    def get_files(api_url):
-        response = requests.get(api_url, headers=headers, timeout=REQUEST_TIMEOUT)
+    def get_files(url):
+        response = requests.get(url, headers=headers, timeout=REQUEST_TIMEOUT)
         if response.status_code == 200:
             items = response.json()
             for item in items:
@@ -57,10 +57,7 @@ def fetch_repository_files(repo_name, headers):
                 elif item['type'] == 'dir':
                     get_files(item['url'])
         else:
-            print(
-                f"Failed to fetch files from {api_url}: "
-                f"{response.status_code} - {response.text}"
-            )
+            print(f"Failed to fetch files from {url}: {response.status_code} - {response.text}")
 
     get_files(api_url)
     return repo_files
@@ -84,14 +81,21 @@ def check_comment_at_start(file_url, headers):
         if lines:
             first_line = lines[0].strip()
             prefixes = ['#', '//', '/*', "'''", '"', "#'"]
-            if any(first_line.startswith(prefix) for prefix in prefixes):
-                return True
+            return any(first_line.startswith(prefix) for prefix in prefixes)
     else:
-        print(
-            f"Failed to fetch file {file_url}: "
-            f"{response.status_code} - {response.text}"
-        )
+        print(f"Failed to fetch file {file_url}: {response.status_code} - {response.text}")
     return False
+
+
+def determine_comment_category(percentage):
+    """Determine the comment category based on the percentage."""
+    if percentage > 75:
+        return 'most'
+    if 50 < percentage <= 75:
+        return 'more'
+    if 25 < percentage <= 50:
+        return 'some'
+    return 'none'
 
 
 def analyze_repositories(input_csv, output_csv):
@@ -108,15 +112,15 @@ def analyze_repositories(input_csv, output_csv):
                          Can be 'none', 'some', 'more', or 'most'.
     """
     headers = {'Authorization': f'token {token}'}
-    df = pd.read_csv(input_csv, sep=';', encoding='ISO-8859-1', on_bad_lines='warn')
-    total_repos = len(df)
+    data_frame = pd.read_csv(input_csv, sep=';', encoding='ISO-8859-1', on_bad_lines='warn')
+    total_repos = len(data_frame)
 
-    if 'comment_percentage' not in df.columns:
-        df['comment_percentage'] = 0
-    if 'comment_category' not in df.columns:
-        df['comment_category'] = ''
+    if 'comment_percentage' not in data_frame.columns:
+        data_frame['comment_percentage'] = 0
+    if 'comment_category' not in data_frame.columns:
+        data_frame['comment_category'] = ''
 
-    for index, row in df.iterrows():
+    for index, row in data_frame.iterrows():
         repo_url = row['html_url']
 
         # Skip rows with missing or non-string URLs
@@ -130,13 +134,12 @@ def analyze_repositories(input_csv, output_csv):
             # Handle GitHub rate limit
             rate_limit = api.rate_limit.get()
             if rate_limit['resources']['core']['remaining'] == 0:
-                reset_time = rate_limit['resources']['core']['reset']
-                sleep_time = max(0, reset_time - time.time())
                 print(f"Rate limit exceeded. Sleeping for {RATE_LIMIT_SLEEP_TIME / 60} minutes.")
                 time.sleep(RATE_LIMIT_SLEEP_TIME)
 
             # Fetch the programming language of the repository
-            repo_info = api.repos.get(repo_name.split('/')[0], repo_name.split('/')[1])
+            owner, repo = repo_name.split('/')
+            repo_info = api.repos.get(owner, repo)
             language = repo_info.language
 
             if language not in ['Python', 'R', 'C++']:
@@ -151,33 +154,22 @@ def analyze_repositories(input_csv, output_csv):
                 for file_url in repo_files
             )
 
-            if total_files > 0:
-                comment_percentage = (commented_files / total_files) * 100
-            else:
-                comment_percentage = 0
+            comment_percentage = (commented_files / total_files) * 100 if total_files > 0 else 0
+            comment_category = determine_comment_category(comment_percentage)
 
-            if comment_percentage > 75:
-                comment_category = 'most'
-            elif 50 < comment_percentage <= 75:
-                comment_category = 'more'
-            elif 25 < comment_percentage <= 50:
-                comment_category = 'some'
-            else:
-                comment_category = 'none'
+            data_frame.at[index, 'comment_percentage'] = comment_percentage
+            data_frame.at[index, 'comment_category'] = comment_category
 
-            df.loc[index, 'comment_percentage'] = comment_percentage
-            df.loc[index, 'comment_category'] = comment_category
-
-            # Save the record as soon as it is fetched
-            df.to_csv(output_csv, index=False)
+            # Save progress to output CSV
+            data_frame.to_csv(output_csv, index=False)
         except HTTPError as http_err:
             print(f"HTTP error occurred for repository {repo_url}: {http_err}")
         except Exception as error:
             print(f"Error processing repository {repo_url}: {error}")
             continue
 
-    # Save the final dataframe to the output CSV file
-    df.to_csv(output_csv, index=False)
+    # Save the final data frame to the output CSV file
+    data_frame.to_csv(output_csv, index=False)
 
 
 if __name__ == '__main__':

@@ -8,7 +8,7 @@ import argparse
 import os
 import time
 import pandas as pd
-from github import Github, GithubException, RateLimitExceededException  # pylint: disable=E0611
+from github import Github, GithubException  # pylint: disable=E0611
 from dotenv import load_dotenv
 
 # Get the directory of the current script
@@ -163,7 +163,7 @@ def main(input_csv_file, output_csv_file):
     count = 0
     for index, row in data_frame.iterrows():
         url = row['html_url']
-        
+
         # Skip empty or null URLs
         if pd.isna(url) or not url.strip():
             print(f"Skipping row with missing or null URL at index {index}")
