@@ -1,38 +1,48 @@
 """
-Reads GitHub repository links from a given CSV file,
-fetches the README content, and stores the content in a
-new column (single cell per README) in the CSV file.
-Drops special characters , and ; (which causes delimiter
-error) before saving the content to CSV file.
+Processes a CSV file containing GitHub repository URLs, retrieves README content from each repository,
+and appends this content to a new CSV file. Uses GitHub's API to access README files and manages API
+rate limits by retrying requests after a delay if limits are exceeded. Requires a GitHub token in a
+.env file for API authentication. Special characters removed from README content include commas, 
+line breaks, semicolons, and carriage returns to ensure single-cell entries in the output CSV file.
 """
 
 import os
-import pandas as pd
 import logging
 import time
+import argparse
+from csv import QUOTE_MINIMAL
+import pandas as pd
 from requests import get
 from requests.exceptions import HTTPError
 from dotenv import load_dotenv
-import argparse
-
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Internal delimiter for reading CSV
-CSV_DELIMITER = ';'  # Change this to the delimiter used in your CSV file
-
+CSV_DELIMITER = ';'  # Adjust this to the delimiter used in the input CSV file
 
 def is_github_url(url):
     """
-    Check if a URL is a GitHub repository URL.
+    Checks if a URL is a GitHub repository URL.
+    
+    Args:
+        url (str): The URL string to check.
+
+    Returns:
+        bool: True if the URL is a valid GitHub repository URL, False otherwise.
     """
     return isinstance(url, str) and url.startswith('https://github.com/')
 
-
 def get_owner_repo_from_url(url):
     """
-    Extract the owner and repository name from a GitHub repository URL.
+    Extracts the owner and repository name from a GitHub repository URL.
+    
+    Args:
+        url (str): The GitHub repository URL.
+
+    Returns:
+        tuple: A tuple containing the repository owner (str) and repository name (str), or (None, None) if the URL is invalid.
     """
     if not is_github_url(url):
         return None, None
@@ -43,38 +53,49 @@ def get_owner_repo_from_url(url):
         return owner, repo
     return None, None
 
-
 def fetch_readme_content(owner, repo, token):
     """
-    Fetch the README file content from the root directory of a GitHub repository.
+    Fetches the README file content from the root directory of a GitHub repository.
+    
+    Args:
+        owner (str): The repository owner's GitHub username.
+        repo (str): The repository name.
+        token (str): GitHub API token for authentication.
+
+    Returns:
+        str: The content of the README file, or an empty string if fetching fails.
     """
     headers = {'Authorization': f'token {token}'}
     try:
-        # Fetch repository contents
         response = get(f'https://api.github.com/repos/{owner}/{repo}/contents', headers=headers)
         response.raise_for_status()
         contents = response.json()
-        # Find README file
         for content in contents:
             if content['type'] == 'file' and content['name'].lower() in ['readme.md', 'readme', 'readme.rst']:
                 readme_response = get(content['download_url'])
                 readme_response.raise_for_status()
                 return readme_response.text
-
-    except HTTPError as e:
-        if e.response.status_code == 403 and 'X-RateLimit-Remaining' in e.response.headers and e.response.headers['X-RateLimit-Remaining'] == '0':
+    except HTTPError as http_err:
+        if http_err.response.status_code == 403 and 'X-RateLimit-Remaining' in http_err.response.headers and \
+           http_err.response.headers['X-RateLimit-Remaining'] == '0':
             logging.warning("Rate limit exceeded. Sleeping for 20 minutes.")
-            time.sleep(1200)  # Sleep for 20 minutes
-            return fetch_readme_content(owner, repo, token)  # Retry the same URL
-        logging.error(f"HTTP error: {e}")
-    except Exception as e:
-        logging.error(f"Error: {e}")
+            time.sleep(1200)
+            return fetch_readme_content(owner, repo, token)
+        logging.error("HTTP error occurred: %s", http_err)
+    except Exception as err:
+        logging.error("An error occurred: %s", err)
     return ""
-
 
 def process_csv(input_csv, output_csv):
     """
-    Process the CSV file to fetch the README content from repositories and update the CSV.
+    Processes the CSV file to fetch README content from GitHub repositories and update the CSV with the README content.
+    
+    Args:
+        input_csv (str): Path to the input CSV file containing a column 'html_url' with GitHub repository URLs.
+        output_csv (str): Path to save the updated CSV file with an added 'readme' column.
+
+    Returns:
+        None
     """
     df = pd.read_csv(input_csv, delimiter=CSV_DELIMITER, encoding='ISO-8859-1')
 
@@ -82,7 +103,6 @@ def process_csv(input_csv, output_csv):
         logging.error("Input CSV must contain 'html_url' column.")
         return
 
-    # Load GitHub token from .env file
     script_dir = os.path.dirname(os.path.realpath(__file__))
     env_path = os.path.join(script_dir, '..', '..', '..', '.env')
     load_dotenv(dotenv_path=env_path, override=True)
@@ -98,35 +118,32 @@ def process_csv(input_csv, output_csv):
             readme_contents.append('')
             continue
 
-        url = str(url).strip()  # Convert to string and strip whitespace
+        url = str(url).strip()
 
         if not is_github_url(url):
-            logging.warning(f"Skipping non-GitHub URL: {url}")
+            logging.warning("Skipping non-GitHub URL: %s", url)
             readme_contents.append('')
             continue
 
         owner, repo = get_owner_repo_from_url(url)
         if not owner or not repo:
-            logging.warning(f"Skipping invalid GitHub URL: {url}")
+            logging.warning("Skipping invalid GitHub URL: %s", url)
             readme_contents.append('')
             continue
 
-        logging.info(f"Processing URL: {url}")
+        logging.info("Processing URL: %s", url)
         try:
             readme_content = fetch_readme_content(owner, repo, token)
             readme_contents.append(readme_content)
-        except Exception as e:
-            logging.error(f"Failed to fetch README for {url}: {e}")
+        except Exception as fetch_err:
+            logging.error("Failed to fetch README for %s: %s", url, fetch_err)
             readme_contents.append('')
 
     df['readme'] = readme_contents
 
-    # Clean the README content
-    df['readme'] = df['readme'].str.replace('\n', ' ').str.replace(';', '').str.replace(',', '')
-
-    df.to_csv(output_csv, index=False)
-    logging.info(f"Processing complete. Updated CSV saved to {output_csv}")
-
+    df['readme'] = df['readme'].str.replace('[,\r\n;]', ' ', regex=True)
+    df.to_csv(output_csv, index=False, quotechar='"', quoting=QUOTE_MINIMAL, encoding='utf-8')
+    logging.info("Processing complete. Updated CSV saved to %s", output_csv)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Fetch README content from GitHub repositories listed in a CSV file.")
