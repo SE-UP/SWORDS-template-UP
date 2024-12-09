@@ -1,8 +1,5 @@
 """
-This script utilizes the GitHub API to retrieve repository details
-and specific files (like requirements.txt, DESCRIPTION, CMakeLists.txt)
-that typically document project dependencies. It handles GitHub API rate
-limits by sleeping for 15 minutes if the limit is reached.
+Retrives dependecy configuration files for Python, R, C++
 """
 
 import argparse
