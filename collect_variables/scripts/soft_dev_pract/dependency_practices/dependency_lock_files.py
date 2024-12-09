@@ -114,7 +114,7 @@ if __name__ == "__main__":
     input_data = pd.read_csv(command_line_arguments.input, sep=',')
 
     # Add a new column for the results
-    input_data['dependency_config_files'] = ''
+    input_data['dependency_lock_files'] = ''
 
     # Loop through each row of the DataFrame
     for index, row in input_data.iterrows():
@@ -123,7 +123,7 @@ if __name__ == "__main__":
         # Skip rows with missing or non-string GitHub URLs
         if not is_github_url(repo_url):
             print(f"Skipping invalid or non-GitHub URL: {repo_url}")
-            input_data.at[index, 'dependency_config_files'] = None  # Leave the field empty
+            input_data.at[index, 'dependency_lock_files'] = None  # Leave the field empty
             continue
 
         # Check requirements for each repository using 'repo_url'
