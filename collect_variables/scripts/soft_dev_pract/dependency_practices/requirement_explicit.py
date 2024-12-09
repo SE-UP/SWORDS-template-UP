@@ -52,7 +52,7 @@ def check_requirements(repository_url):
         # Define the common dependency files
         common_dependency_files = {
             'Python': ['requirements.txt', 'Pipfile', 'pyproject.toml', 'setup.py'],
-            'R': ['DESCRIPTION', 'renv.lock', 'packrat/packrat.lock'],
+            'R': ['DESCRIPTION'],
             'C++': ['CMakeLists.txt', 'conanfile.txt', 'vcpkg.json']
         }
 
@@ -117,7 +117,7 @@ if __name__ == "__main__":
     input_data = pd.read_csv(command_line_arguments.input, sep=',')
 
     # Add a new column for the results
-    input_data['requirements_defined'] = ''
+    input_data['dependency_config_files'] = ''
 
     # Loop through each row of the DataFrame
     for index, row in input_data.iterrows():
@@ -126,7 +126,7 @@ if __name__ == "__main__":
         # Skip rows with missing or non-string GitHub URLs
         if not is_github_url(repo_url):
             print(f"Skipping invalid or non-GitHub URL: {repo_url}")
-            input_data.at[index, 'requirements_defined'] = None  # Leave the field empty
+            input_data.at[index, 'dependency_config_files'] = None  # Leave the field empty
             continue
 
         # Check requirements for each repository using 'repo_url'
