@@ -111,7 +111,11 @@ if __name__ == "__main__":
     command_line_arguments = argument_parser.parse_args()
 
     # Read the input CSV file using pandas
-    input_data = pd.read_csv(command_line_arguments.input, sep=',')
+    try:
+        input_data = pd.read_csv(command_line_arguments.input, delimiter=';', encoding='utf-8')
+    except UnicodeDecodeError:
+        print(f"Error reading {command_line_arguments.input} with UTF-8 encoding. Trying ISO-8859-1...")
+        input_data = pd.read_csv(command_line_arguments.input, delimiter=';', encoding='ISO-8859-1')
 
     # Add a new column for the results
     input_data['dependency_config_files'] = ''
