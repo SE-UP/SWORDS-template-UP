@@ -1,42 +1,38 @@
-"""
-This script checks if GitHub repositories have `CONTRIBUTING.md` and 
-`CODE_OF_CONDUCT.md` files. It processes repositories listed in a CSV 
-file, checks the presence of these files in the root, `.github/`, and 
-`docs/` directories. It uses the GitHub API and handles rate limiting 
-by pausing execution for 20 minutes (or until rate limit resets) if 
-the rate limit is reached. The results are saved to an output CSV file.
-
-Required environment variables:
-- GITHUB_TOKEN: GitHub Personal Access Token with appropriate permissions.
-
-Usage:
-    python script_name.py --input <input_file.csv> --output <output_file.csv>
-"""
-
 import os
 import argparse
 import pandas as pd
 import time
 from ghapi.all import GhApi
 from dotenv import load_dotenv
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+
+def load_credentials():
+    """
+    Load GITHUB_USER and GITHUB_TOKEN from the .env file located relative to the script's directory.
+    """
+    # Get the directory of the current script
+    script_dir = os.path.dirname(os.path.realpath(__file__))
+
+    # Construct the relative path to the .env file
+    env_path = os.path.join(script_dir, '..', '..', '..', '..', '.env')
+
+    # Load the .env file
+    load_dotenv(dotenv_path=env_path, override=True)
+
+    # Get the GITHUB_USER and GITHUB_TOKEN from the .env file
+    user = os.getenv('GITHUB_USER')
+    token = os.getenv('GITHUB_TOKEN')
+
+    if not user or not token:
+        raise ValueError("GITHUB_USER or GITHUB_TOKEN not found. Please ensure the .env file is properly configured.")
+    
+    return user, token
 
 
 def check_repository_files(api: GhApi, repo_owner: str, repo_name: str) -> bool:
     """
     Check if a repository contains `CONTRIBUTING.md` and `CODE_OF_CONDUCT.md` files.
-    
-    This function searches in the following directories:
-    - Root directory
-    - `.github/` folder
-    - `docs/` folder
-    
-    Args:
-        api (GhApi): Authenticated GitHub API client.
-        repo_owner (str): The GitHub repository owner's username.
-        repo_name (str): The GitHub repository name.
-    
-    Returns:
-        bool: True if at least one of the files is found, otherwise False.
     """
     paths_to_check = [
         "CONTRIBUTING.md",
@@ -57,46 +53,50 @@ def check_repository_files(api: GhApi, repo_owner: str, repo_name: str) -> bool:
 
 def check_rate_limit(api: GhApi) -> bool:
     """
-    Check if the GitHub API rate limit has been reached. If the rate limit is 
-    exceeded, the script sleeps until the rate limit resets.
-    
-    Args:
-        api (GhApi): Authenticated GitHub API client.
-    
-    Returns:
-        bool: True if the rate limit has been reached and the script is sleeping.
+    Check if the GitHub API rate limit has been reached. If exceeded, the script sleeps.
     """
     rate_limit = api.rate_limit.get()
     remaining = rate_limit.resources.core.remaining
     reset_time = rate_limit.resources.core.reset
 
     if remaining == 0:
-        reset_timestamp = reset_time.timestamp()
         current_time = time.time()
-        sleep_time = reset_timestamp - current_time + 60  # Adding 1 minute buffer
+        sleep_time = reset_time - current_time + 60  # Adding 1 minute buffer
         print(f"Rate limit reached. Sleeping for {int(sleep_time // 60)} minutes...")
         time.sleep(sleep_time)
         return True
     return False
 
 
-def process_repositories(input_csv: str, output_csv: str, token: str) -> None:
+def process_repository(api: GhApi, row):
     """
-    Processes each GitHub repository from the input CSV file, checks for the 
-    presence of `CONTRIBUTING.md` and `CODE_OF_CONDUCT.md` files, and saves 
-    the results in an output CSV file. The function handles rate limiting by 
-    sleeping when the limit is exceeded.
-    
-    Args:
-        input_csv (str): Path to the input CSV file containing repository URLs.
-        output_csv (str): Path to the output CSV file where results will be saved.
-        token (str): GitHub Personal Access Token for authentication.
-    
-    Returns:
-        None
+    Process a single repository: Check for files and return the result.
+    """
+    html_url = row.get('html_url')
+    if not html_url or "github.com" not in html_url:
+        return None, None  # Skip non-GitHub URLs
+
+    try:
+        # Parse repository owner and name
+        parts = html_url.replace("https://github.com/", "").split("/")
+        if len(parts) < 2:
+            return None, None  # Invalid repository URL
+        repo_owner, repo_name = parts[0], parts[1]
+
+        # Check for files
+        has_contributing = check_repository_files(api, repo_owner, repo_name)
+        has_code_of_conduct = check_repository_files(api, repo_owner, repo_name)
+        return has_contributing, has_code_of_conduct
+    except Exception as e:
+        print(f"Error processing repository: {html_url} ({e})")
+        return None, None
+
+
+def process_repositories(input_csv: str, output_csv: str, user: str, token: str, batch_size: int = 10, max_threads: int = 5) -> None:
+    """
+    Processes repositories in batches with partial saving and parallel processing.
     """
     try:
-        # Try reading the CSV with a semicolon delimiter
         df = pd.read_csv(input_csv, delimiter=';', encoding='utf-8')
     except UnicodeDecodeError:
         print(f"Error reading {input_csv} with UTF-8 encoding. Trying ISO-8859-1...")
@@ -107,73 +107,60 @@ def process_repositories(input_csv: str, output_csv: str, token: str) -> None:
         print(f"Error: The 'html_url' column is missing in the input CSV file.")
         return
 
-    # Add columns for results
-    df['has_contributing'] = None
-    df['has_code_of_conduct'] = None
+    # Add result columns if not present
+    if 'has_contributing' not in df.columns:
+        df['has_contributing'] = None
+    if 'has_code_of_conduct' not in df.columns:
+        df['has_code_of_conduct'] = None
 
-    api = GhApi(token=token)
-
+    api = GhApi(owner=user, token=token)
     total_repos = len(df)
-    completed = 0
 
-    for index, row in df.iterrows():
-        try:
-            # Check rate limit before processing each repository
+    with ThreadPoolExecutor(max_threads) as executor:
+        futures = {}
+        for index, row in df.iterrows():
+            # Check rate limit before submitting tasks
             if check_rate_limit(api):
-                print(f"Rate limit reset, proceeding with next repository.")
-            
-            # Skip non-GitHub URLs
-            if "github.com" not in row['html_url']:
-                print(f"Skipping non-GitHub domain: {row['html_url']}")
+                print("Rate limit reset. Continuing...")
+
+            # Skip if already processed
+            if pd.notnull(df.at[index, 'has_contributing']) and pd.notnull(df.at[index, 'has_code_of_conduct']):
                 continue
 
-            # Parse repository owner and name from URL
-            parts = row['html_url'].replace("https://github.com/", "").split("/")
-            if len(parts) < 2:
-                continue
-            repo_owner, repo_name = parts[0], parts[1]
+            # Log repository being processed
+            print(f"Processing repository: {row['html_url']} (Index: {index})")
 
-            # Check for files
-            df.at[index, 'has_contributing'] = check_repository_files(api, repo_owner, repo_name)
-            df.at[index, 'has_code_of_conduct'] = check_repository_files(api, repo_owner, repo_name)
-        except Exception as e:
-            print(f"Skipping repository due to error: {row['html_url']} ({e})")
-            continue
-        finally:
-            completed += 1
-            print(f"Processed: {completed}/{total_repos}")
+            futures[executor.submit(process_repository, api, row)] = index
 
-    # Save results to output CSV
+        completed = 0
+        for future in as_completed(futures):
+            index = futures[future]
+            try:
+                has_contributing, has_code_of_conduct = future.result()
+                df.at[index, 'has_contributing'] = has_contributing
+                df.at[index, 'has_code_of_conduct'] = has_code_of_conduct
+            except Exception as e:
+                print(f"Error processing index {index}: {e}")
+            finally:
+                completed += 1
+                print(f"Processed: {completed}/{total_repos}")
+
+                # Save partial results every batch_size
+                if completed % batch_size == 0:
+                    df.to_csv(output_csv, index=False)
+                    print(f"Partial results saved at {completed}/{total_repos}")
+
+    # Final save
     df.to_csv(output_csv, index=False)
-    print(f"Results saved to {output_csv}")
+    print(f"Final results saved to {output_csv}")
 
 
 def main() -> None:
     """
     Main function to parse command-line arguments and execute the script.
-    
-    Parses the input CSV file path, output CSV file path, and GitHub token 
-    from the environment variables or command-line arguments. It then processes 
-    the repositories and checks for the required files.
-    
-    Returns:
-        None
     """
-    # Get the directory of the current script
-    script_dir = os.path.dirname(os.path.realpath(__file__))
-
-    # Create the relative path to the .env file
-    env_path = os.path.join(script_dir, '..', '..', '..', '..', '.env')
-
-    # Load the .env file
-    load_dotenv(dotenv_path=env_path, override=True)
-
-    # Get the GITHUB_TOKEN from the .env file
-    token = os.getenv('GITHUB_TOKEN')
-
-    if not token:
-        print("GitHub token not found in .env file.")
-        return
+    # Load the GitHub user and token
+    user, token = load_credentials()
 
     # Command-line argument parsing
     parser = argparse.ArgumentParser(description="Check for CONTRIBUTING.md and CODE_OF_CONDUCT.md in GitHub repositories.")
@@ -182,7 +169,7 @@ def main() -> None:
     args = parser.parse_args()
 
     # Process repositories
-    process_repositories(args.input, args.output, token)
+    process_repositories(args.input, args.output, user, token)
 
 
 if __name__ == "__main__":
