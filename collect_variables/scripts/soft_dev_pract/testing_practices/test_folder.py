@@ -54,7 +54,7 @@ def check_test_folder(repo):
     try:
         contents = repo.get_contents("")
         for content in contents:
-            if content.type == "dir" and content.name.lower() in ["test", "tests"]:
+            if content.type == "dir" and content.name.lower() in ["test", "tests", "inst"]:
                 return True
         return False
     except GithubException as github_exception:
