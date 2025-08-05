@@ -1,3 +1,4 @@
+"""Checks types of testing in GitHub repositories by analyzing test folder names."""
 import argparse
 import csv
 import os
