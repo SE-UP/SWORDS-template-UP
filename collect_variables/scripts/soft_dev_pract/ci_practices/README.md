@@ -4,10 +4,10 @@ Navigate to collect_varaibale
 python3 scripts/soft_dev_pract/ci_practices/check_pre_commit_hooks.py --input results/repository_links.csv --output results/ci_hooks.csv
 
 ### Run
-python3 scripts/soft_dev_pract/ci_practices/continious_integration.py --input --input results/repository_links.csv --output results/output.csv
+python3 scripts/soft_dev_pract/ci_practices/continious_integration.py --input results/repository_links.csv --output results/output.csv
 
 
 ### Run 
-python check_test_lint_rules.py --input --input results/repository_links.csv --output results/output.csv
+python3 scripts/soft_dev_pract/ci_practices/add_ci_rules.py  --input results/repository_links.csv --output results/output.csv
 
 
