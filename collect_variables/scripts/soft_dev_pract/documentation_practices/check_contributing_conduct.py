@@ -1,3 +1,4 @@
+"""Checks GitHub repositories for CONTRIBUTING and CODE_OF_CONDUCT files and saves the results to a CSV."""
 import os
 import argparse
 import pandas as pd
