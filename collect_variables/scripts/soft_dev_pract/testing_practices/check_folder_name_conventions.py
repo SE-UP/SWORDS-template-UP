@@ -36,7 +36,8 @@ R_TEST_DIRS = ["test/tinytest/", "test/testthat/", "tests/testthat/", "test/tiny
 
 def search_test_folders(repo_full_name, lang):
     """
-    Search for 'test' or 'tests' folders in the root directory and then look for specific subfolders within them.
+    Search for 'test' or 'tests' folders in the root directory
+    and then look for specific subfolders within them.
     """
     print(f"Searching for test folders in repository: {repo_full_name}, Language: {lang}")
     found_folders = []
