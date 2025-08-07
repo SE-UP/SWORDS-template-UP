@@ -61,7 +61,12 @@ def fetch_repository_files(repo_name, headers):
                 elif item['type'] == 'dir':
                     get_files(item['url'])
         else:
-            logging.error("Failed to fetch files from %s: %s - %s", url, response.status_code, response.text)
+            logging.error(
+                "Failed to fetch files from %s: %s - %s",
+                url,
+                response.status_code,
+                response.text,
+            )
 
     get_files(api_url)
     return repo_files
@@ -87,7 +92,13 @@ def check_comment_at_start(file_url, headers):
             prefixes = ['#', '//', '/*', "'''", '"', "#'"]
             return any(first_line.startswith(prefix) for prefix in prefixes)
     else:
-        logging.error("Failed to fetch file %s: %s - %s", file_url, response.status_code, response.text)
+        logging.error(
+            "Failed to fetch file %s: %s - %s",
+            file_url,
+            response.status_code,
+            response.text,
+        )
+
     return False
 
 
