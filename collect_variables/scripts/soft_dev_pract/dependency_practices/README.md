@@ -10,3 +10,7 @@ python3 scripts/soft_dev_pract/dependency_practices/dependency_lock_files.py  --
 Executable command to run requirements_explicit.py 
 
 python3 scripts/soft_dev_pract/dependency_practices/dependency_lock_files.py  --input results/repository_links.csv --output results/contributing_conduct.csv
+
+
+
+Check if the repositories have profilers and symbolic debuggers. 
