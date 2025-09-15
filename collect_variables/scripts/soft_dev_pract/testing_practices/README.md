@@ -6,3 +6,10 @@ python3 scripts/soft_dev_practices/testing_practices/test_folder.py --input resu
 
 
 python3 scripts/soft_dev_pract/testing_practices/check_folder_name_conventions.py --input results/repository_links.csv --output results/testing_types.csv
+
+
+
+Todo: 
+Use LLMs to check 
+1. Module (unit, component), integration, system and acceptance. 
+2. What should be documented for testing (Test strategy+?): Check if it is present in testing.md
