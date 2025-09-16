@@ -7,8 +7,6 @@ Usage: Naviage to the `collect_variables` directory and run:
     --input results/repository_links.csv --output results/ci_hooks.csv
 """
 
-from __future__ import annotations
-
 import argparse
 import logging
 import os
