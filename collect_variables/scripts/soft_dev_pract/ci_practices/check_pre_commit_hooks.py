@@ -2,8 +2,8 @@
 Checks GitHub repositories for the presence of a .pre-commit-config.yaml
 file and logs results to a CSV.
 
-Usage: Naviage to the `collect_variables` directory and run:
-    python3 scripts/soft_dev_pract/ci_practices/check_pre_commit_hooks.py 
+Usage: Navigate to the `collect_variables` directory and run:
+    python3 scripts/soft_dev_pract/ci_practices/check_pre_commit_hooks.py \
     --input results/repository_links.csv --output results/ci_hooks.csv
 """
 
@@ -11,7 +11,7 @@ import argparse
 import logging
 import os
 import time
-from typing import Optional
+from typing import Optional, List
 
 import pandas as pd
 from pandas.errors import EmptyDataError, ParserError
@@ -132,7 +132,7 @@ def main(input_csv: str, output_csv: str) -> None:
         return
 
     data["ci_hook"] = ""
-    skipped_urls: list[str] = []
+    skipped_urls: List[str] = []  # Py3.6–3.12 compatible
 
     for index, row in data.iterrows():
         html_url = row["html_url"]
