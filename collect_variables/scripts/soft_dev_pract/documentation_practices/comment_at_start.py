@@ -3,7 +3,7 @@ Analyze GitHub repositories for the presence of brief comments at the start
 of source code files (.py, .R, .cpp). Results are written to a CSV.
 
 Usage: Navigate to the 'collect_variables' directory and run:
-   python scripts/soft_dev_pract/documentation_practices/check_contributing_conduct.py
+   python scripts/soft_dev_pract/documentation_practices/check_contributing_conduct.py \
      --input results/repositories.csv --output results/output_results.csv
 """
 
@@ -11,7 +11,8 @@ import argparse
 import logging
 import os
 import time
-from typing import Iterable, Optional
+from collections.abc import Iterable
+from typing import List, Mapping, Optional, Tuple
 
 import pandas as pd
 import requests
@@ -37,7 +38,7 @@ TOKEN = os.getenv("GITHUB_TOKEN")
 API = GhApi(token=TOKEN)
 
 
-def fetch_repository_files(repo_name: str, headers: dict[str, str]) -> list[str]:
+def fetch_repository_files(repo_name: str, headers: Mapping[str, str]) -> List[str]:
     """
     Recursively fetch raw file download URLs for selected source files in a repo.
 
@@ -48,7 +49,7 @@ def fetch_repository_files(repo_name: str, headers: dict[str, str]) -> list[str]
     Returns:
         List of raw file download URLs (.py, .R, .cpp).
     """
-    repo_files: list[str] = []
+    repo_files: List[str] = []
     api_url = f"https://api.github.com/repos/{repo_name}/contents"
 
     def get_files(url: str) -> None:
@@ -58,9 +59,6 @@ def fetch_repository_files(repo_name: str, headers: dict[str, str]) -> list[str]
 
         Args:
             url: GitHub Contents API directory URL to traverse.
-
-        Returns:
-            None
         """
         try:
             response = requests.get(
@@ -100,7 +98,7 @@ def fetch_repository_files(repo_name: str, headers: dict[str, str]) -> list[str]
     return repo_files
 
 
-def check_comment_at_start(file_url: str, headers: dict[str, str]) -> bool:
+def check_comment_at_start(file_url: str, headers: Mapping[str, str]) -> bool:
     """
     Check if a file has a comment at the very start.
 
@@ -126,7 +124,8 @@ def check_comment_at_start(file_url: str, headers: dict[str, str]) -> bool:
         return False
 
     first_line = lines[0].strip()
-    prefixes = ("#", "//", "/*", "'''", '"', "#'")
+    # Basic prefixes to capture common comment/docstring starts
+    prefixes = ("#", "//", "/*", "'''", '"""')
     return any(first_line.startswith(prefix) for prefix in prefixes)
 
 
@@ -152,17 +151,23 @@ def determine_comment_category(percentage: float) -> str:
 def _sleep_if_rate_limited() -> None:
     """
     Sleep if the GitHub REST API core rate limit is exhausted.
-
-    Args:
-        None
-
-    Returns:
-        None
     """
     try:
         rate_limit = API.rate_limit.get()
-        remaining = rate_limit["resources"]["core"]["remaining"]
-        if int(remaining) == 0:
+        # GhApi may return attrs rather than a dict; be defensive.
+        resources = getattr(rate_limit, "resources", None)
+        if isinstance(resources, dict):
+            core = resources.get("core", {})
+            remaining = int(core.get("remaining", 0) or 0)
+        else:
+            # Fallback: try dict-like access if available
+            try:
+                remaining = int(rate_limit["resources"]["core"]["remaining"])  # type: ignore[index]
+            except Exception:  # pylint: disable=broad-except
+                logger.warning("Could not read rate limit info (unexpected shape).")
+                return
+
+        if remaining == 0:
             logger.info(
                 "Rate limit exceeded. Sleeping for %d minutes.",
                 RATE_LIMIT_SLEEP_SECONDS // 60,
@@ -173,8 +178,8 @@ def _sleep_if_rate_limited() -> None:
 
 
 def process_repository(
-    repo_url: str, headers: dict[str, str]
-) -> tuple[Optional[float], Optional[str]]:
+    repo_url: str, headers: Mapping[str, str]
+) -> Tuple[Optional[float], Optional[str]]:
     """
     Process a single repository: collect source files and compute comment stats.
 
@@ -270,9 +275,6 @@ def _save_csv_safely(data_frame: pd.DataFrame, path: str) -> None:
     Args:
         data_frame: The DataFrame to save.
         path: Output CSV path.
-
-    Returns:
-        None
     """
     try:
         data_frame.to_csv(path, index=False)
@@ -284,7 +286,7 @@ def _process_row(
     data_frame: pd.DataFrame,
     index: int,
     total: int,
-    headers: dict[str, str],
+    headers: Mapping[str, str],
     output_csv: str,
 ) -> None:
     """
@@ -296,9 +298,6 @@ def _process_row(
         total: Total number of rows.
         headers: HTTP headers (e.g., Authorization).
         output_csv: Path for interim progress saves.
-
-    Returns:
-        None
     """
     repo_url = data_frame.at[index, "html_url"]
     logger.info("Processing repository %d/%d: %s", index + 1, total, repo_url)
@@ -326,15 +325,12 @@ def analyze_repositories(input_csv: str, output_csv: str) -> None:
     Args:
         input_csv: Path to the input CSV containing 'html_url' column.
         output_csv: Path to the CSV to write results.
-
-    Returns:
-        None
     """
     if not isinstance(TOKEN, str) or not TOKEN:
         logger.error("GITHUB_TOKEN not found. Set it in your .env file.")
         return
 
-    headers = {"Authorization": f"token {TOKEN}"}
+    headers: Mapping[str, str] = {"Authorization": f"token {TOKEN}"}
     data_frame = _read_input_csv(input_csv)
     if data_frame is None:
         return
@@ -360,12 +356,6 @@ def analyze_repositories(input_csv: str, output_csv: str) -> None:
 def _build_arg_parser() -> argparse.ArgumentParser:
     """
     Build and return the CLI argument parser.
-
-    Args:
-        None
-
-    Returns:
-        ArgumentParser
     """
     parser = argparse.ArgumentParser(
         description=(
@@ -375,9 +365,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--input",
         default="../collect_repositories/results/repositories_filtered.csv",
-        help=(
-            'Input CSV file containing repository URLs in "html_url" column'
-        ),
+        help=('Input CSV file containing repository URLs in "html_url" column'),
     )
     parser.add_argument(
         "--output",
@@ -390,12 +378,6 @@ def _build_arg_parser() -> argparse.ArgumentParser:
 def main() -> None:
     """
     Entry point for CLI execution.
-
-    Args:
-        None
-
-    Returns:
-        None
     """
     logging.basicConfig(level=logging.INFO, format=LOG_FORMAT)
     args = _build_arg_parser().parse_args()
