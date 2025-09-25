@@ -1,200 +1,388 @@
 """
-This program checks the presence of brief comments at the start of
-source code files in GitHub repositories.
+Analyze GitHub repositories for the presence of brief comments at the start
+of source code files (.py, .R, .cpp). Results are written to a CSV.
+
+Usage: Navigate to the 'collect_variables' directory and run:
+   python scripts/soft_dev_pract/documentation_practices/check_contributing_conduct.py \
+     --input results/repositories.csv --output results/output_results.csv
 """
 
+import argparse
+import logging
 import os
 import time
-import logging
-import argparse
+from collections.abc import Iterable
+from typing import List, Mapping, Optional, Tuple
+
 import pandas as pd
 import requests
 from dotenv import load_dotenv
-from requests.exceptions import HTTPError
 from ghapi.all import GhApi
+from pandas.errors import EmptyDataError, ParserError
+from requests.exceptions import HTTPError, RequestException, Timeout
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+REQUEST_TIMEOUT_SECONDS = 10
+RATE_LIMIT_SLEEP_SECONDS = 15 * 60
+SUPPORTED_LANGUAGES = ("Python", "R", "C++")
+GITHUB_PREFIX = "https://github.com/"
+SOURCE_EXTENSIONS = (".py", ".R", ".cpp")
+LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
 
-# Get the directory of the current script
-script_dir = os.path.dirname(os.path.realpath(__file__))
+logger = logging.getLogger(__name__)
 
-# Create the relative path to the .env file
-env_path = os.path.join(script_dir, '..', '..', '..', '.env')
+SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
+ENV_PATH = os.path.join(SCRIPT_DIR, "..", "..", "..", "..", ".env")
+load_dotenv(dotenv_path=ENV_PATH, override=True)
 
-# Load the .env file
-load_dotenv(dotenv_path=env_path, override=True)
-
-# Get the GITHUB_TOKEN from the .env file
-token = os.getenv('GITHUB_TOKEN')
-api = GhApi(token=token)
-
-REQUEST_TIMEOUT = 10  # Timeout for requests.get in seconds
-RATE_LIMIT_SLEEP_TIME = 15 * 60  # Sleep for 15 minutes when rate limit is exceeded
+TOKEN = os.getenv("GITHUB_TOKEN")
+API = GhApi(token=TOKEN)
 
 
-def fetch_repository_files(repo_name, headers):
+def fetch_repository_files(repo_name: str, headers: Mapping[str, str]) -> List[str]:
     """
-    Fetches the list of source code files from a GitHub repository recursively.
+    Recursively fetch raw file download URLs for selected source files in a repo.
 
     Args:
-        repo_name (str): The GitHub repository name in the format 'owner/repo'.
-        headers (dict): The headers for GitHub API requests.
+        repo_name: 'owner/repo' repository slug.
+        headers: HTTP headers (e.g., Authorization).
 
     Returns:
-        list: A list of URLs of the source code files.
+        List of raw file download URLs (.py, .R, .cpp).
     """
-    repo_files = []
-    api_url = f'https://api.github.com/repos/{repo_name}/contents'
+    repo_files: List[str] = []
+    api_url = f"https://api.github.com/repos/{repo_name}/contents"
 
-    def get_files(url):
-        response = requests.get(url, headers=headers, timeout=REQUEST_TIMEOUT)
-        if response.status_code == 200:
+    def get_files(url: str) -> None:
+        """
+        Recursively traverse a GitHub repository directory (Contents API) and
+        collect raw download URLs for matching source files.
+
+        Args:
+            url: GitHub Contents API directory URL to traverse.
+        """
+        try:
+            response = requests.get(
+                url, headers=headers, timeout=REQUEST_TIMEOUT_SECONDS
+            )
+            response.raise_for_status()
+        except (Timeout, RequestException) as exc:
+            logger.error("Failed to fetch files from %s: %s", url, exc)
+            return
+
+        try:
             items = response.json()
-            for item in items:
-                if item['type'] == 'file' and (
-                    item['name'].endswith('.py') or
-                    item['name'].endswith('.R') or
-                    item['name'].endswith('.cpp')
-                ):
-                    repo_files.append(item['download_url'])
-                elif item['type'] == 'dir':
-                    get_files(item['url'])
-        else:
-            logging.error("Failed to fetch files from %s: %s - %s", url, response.status_code, response.text)
+        except ValueError as exc:
+            logger.error("Non-JSON response at %s: %s", url, exc)
+            return
+
+        if not isinstance(items, Iterable):
+            logger.error("Unexpected JSON structure at %s", url)
+            return
+
+        for item in items:
+            try:
+                item_type = item.get("type")
+                name = item.get("name", "")
+                if item_type == "file" and name.endswith(SOURCE_EXTENSIONS):
+                    download_url = item.get("download_url")
+                    if isinstance(download_url, str):
+                        repo_files.append(download_url)
+                elif item_type == "dir":
+                    next_url = item.get("url")
+                    if isinstance(next_url, str):
+                        get_files(next_url)
+            except AttributeError:
+                logger.warning("Skipping malformed item at %s", url)
 
     get_files(api_url)
     return repo_files
 
 
-def check_comment_at_start(file_url, headers):
+def check_comment_at_start(file_url: str, headers: Mapping[str, str]) -> bool:
     """
-    Checks if a file has a comment at the start.
+    Check if a file has a comment at the very start.
 
     Args:
-        file_url (str): The URL of the file to check.
-        headers (dict): The headers for GitHub API requests.
+        file_url: Raw download URL of the file.
+        headers: HTTP headers (e.g., Authorization).
 
     Returns:
-        bool: True if the file has a comment at the start, False otherwise.
+        True if first line appears to be a comment; otherwise False.
     """
-    response = requests.get(file_url, headers=headers, timeout=REQUEST_TIMEOUT)
-    if response.status_code == 200:
-        content = response.text
-        lines = content.split('\n')
-        if lines:
-            first_line = lines[0].strip()
-            prefixes = ['#', '//', '/*', "'''", '"', "#'"]
-            return any(first_line.startswith(prefix) for prefix in prefixes)
-    else:
-        logging.error("Failed to fetch file %s: %s - %s", file_url, response.status_code, response.text)
-    return False
+    try:
+        response = requests.get(
+            file_url, headers=headers, timeout=REQUEST_TIMEOUT_SECONDS
+        )
+        response.raise_for_status()
+    except (Timeout, RequestException) as exc:
+        logger.error("Failed to fetch file %s: %s", file_url, exc)
+        return False
+
+    content = response.text
+    lines = content.split("\n")
+    if not lines:
+        return False
+
+    first_line = lines[0].strip()
+    # Basic prefixes to capture common comment/docstring starts
+    prefixes = ("#", "//", "/*", "'''", '"""')
+    return any(first_line.startswith(prefix) for prefix in prefixes)
 
 
-def determine_comment_category(percentage):
-    """Determine the comment category based on the percentage."""
-    if percentage > 75:
-        return 'most'
-    if 50 < percentage <= 75:
-        return 'more'
-    if 25 < percentage <= 50:
-        return 'some'
-    return 'none'
-
-
-def process_repository(repo_url, headers):
-    """Processes a single repository for analysis."""
-    repo_name = repo_url.split('https://github.com/')[-1]
-    owner, repo = repo_name.split('/')
-
-    # Handle GitHub rate limit
-    rate_limit = api.rate_limit.get()
-    if rate_limit['resources']['core']['remaining'] == 0:
-        logging.info("Rate limit exceeded. Sleeping for %d minutes.", RATE_LIMIT_SLEEP_TIME / 60)
-        time.sleep(RATE_LIMIT_SLEEP_TIME)
-
-    # Fetch the programming language of the repository
-    repo_info = api.repos.get(owner, repo)
-    language = repo_info.language
-
-    if language not in ['Python', 'R', 'C++']:
-        logging.info("Skipping repository %s due to unsupported language: %s", repo_name, language)
-        return None, None
-
-    repo_files = fetch_repository_files(repo_name, headers)
-    total_files = len(repo_files)
-    commented_files = sum(
-        check_comment_at_start(file_url, headers)
-        for file_url in repo_files
-    )
-
-    comment_percentage = (commented_files / total_files) * 100 if total_files > 0 else 0
-    comment_category = determine_comment_category(comment_percentage)
-
-    return comment_percentage, comment_category
-
-def analyze_repositories(input_csv, output_csv):
+def determine_comment_category(percentage: float) -> str:
     """
-    Analyzes GitHub repositories for comments at the start of files.
+    Map a percentage to a category label.
 
     Args:
-        input_csv (str): Input CSV file containing repository URLs in "html_url" column.
-        output_csv (str): Output CSV file to save the analysis results.
+        percentage: Percentage [0, 100].
 
-    The function updates the input CSV file with two new columns:
-    'comment_percentage' - The percentage of files in the repository that start with a comment.
-    'comment_category' - Categorical representation of 'comment_percentage'.
-                         Can be 'none', 'some', 'more', or 'most'.
+    Returns:
+        'most' (>75), 'more' (50–75], 'some' (25–50], or 'none' (≤25).
     """
-    headers = {'Authorization': f'token {token}'}
-    data_frame = pd.read_csv(input_csv, sep=';', encoding='ISO-8859-1', on_bad_lines='warn')
+    if percentage > 75:
+        return "most"
+    if 50 < percentage <= 75:
+        return "more"
+    if 25 < percentage <= 50:
+        return "some"
+    return "none"
+
+
+def _sleep_if_rate_limited() -> None:
+    """
+    Sleep if the GitHub REST API core rate limit is exhausted.
+    """
+    try:
+        rate_limit = API.rate_limit.get()
+        # GhApi may return attrs rather than a dict; be defensive.
+        resources = getattr(rate_limit, "resources", None)
+        if isinstance(resources, dict):
+            core = resources.get("core", {})
+            remaining = int(core.get("remaining", 0) or 0)
+        else:
+            # Fallback: try dict-like access if available
+            try:
+                remaining = int(rate_limit["resources"]["core"]["remaining"])  # type: ignore[index]
+            except Exception:  # pylint: disable=broad-except
+                logger.warning("Could not read rate limit info (unexpected shape).")
+                return
+
+        if remaining == 0:
+            logger.info(
+                "Rate limit exceeded. Sleeping for %d minutes.",
+                RATE_LIMIT_SLEEP_SECONDS // 60,
+            )
+            time.sleep(RATE_LIMIT_SLEEP_SECONDS)
+    except (KeyError, TypeError, ValueError) as exc:
+        logger.warning("Could not read rate limit info: %s", exc)
+
+
+def process_repository(
+    repo_url: str, headers: Mapping[str, str]
+) -> Tuple[Optional[float], Optional[str]]:
+    """
+    Process a single repository: collect source files and compute comment stats.
+
+    Args:
+        repo_url: Full GitHub repo URL (e.g., https://github.com/owner/repo).
+        headers: HTTP headers (e.g., Authorization).
+
+    Returns:
+        (comment_percentage, comment_category) or (None, None) if unsupported or failed.
+    """
+    comment_percentage: Optional[float] = None
+    comment_category: Optional[str] = None
+
+    if not repo_url.startswith(GITHUB_PREFIX):
+        logger.warning("Skipping non-GitHub URL: %s", repo_url)
+        return comment_percentage, comment_category
+
+    slug = repo_url.split(GITHUB_PREFIX, maxsplit=1)[-1].strip("/")
+    parts = slug.split("/")
+    if len(parts) < 2:
+        logger.error("Malformed repository URL: %s", repo_url)
+        return comment_percentage, comment_category
+
+    owner, repo = parts[0], parts[1]
+
+    _sleep_if_rate_limited()
+
+    language: Optional[str] = None
+    try:
+        repo_info = API.repos.get(owner, repo)
+        language = getattr(repo_info, "language", None)
+    except HTTPError as exc:
+        logger.error("HTTP error fetching repo info for %s: %s", slug, exc)
+    except RequestException as exc:
+        logger.error("Request error fetching repo info for %s: %s", slug, exc)
+
+    if language not in SUPPORTED_LANGUAGES:
+        if language is not None:
+            logger.info("Skipping %s due to unsupported language: %s", slug, language)
+        return comment_percentage, comment_category
+
+    repo_files = fetch_repository_files(slug, headers)
+    total_files = len(repo_files)
+    if total_files == 0:
+        logger.info("No matching source files found in %s", slug)
+        comment_percentage = 0.0
+        comment_category = "none"
+        return comment_percentage, comment_category
+
+    commented_files = 0
+    for file_url in repo_files:
+        try:
+            if check_comment_at_start(file_url, headers):
+                commented_files += 1
+        except (RequestException, Timeout) as exc:
+            logger.error("Error checking %s: %s", file_url, exc)
+
+    comment_percentage = (commented_files / total_files) * 100.0
+    comment_category = determine_comment_category(comment_percentage)
+    return comment_percentage, comment_category
+
+
+def _read_input_csv(path: str) -> Optional[pd.DataFrame]:
+    """
+    Read the input CSV defensively.
+
+    Args:
+        path: Path to the CSV file.
+
+    Returns:
+        DataFrame on success; None on failure.
+    """
+    try:
+        return pd.read_csv(
+            path,
+            sep=";",
+            encoding="ISO-8859-1",
+            on_bad_lines="warn",
+        )
+    except (FileNotFoundError, PermissionError) as exc:
+        logger.error("Cannot read input file %s: %s", path, exc)
+    except (EmptyDataError, ParserError, UnicodeDecodeError, ValueError) as exc:
+        logger.error("Parsing error reading %s: %s", path, exc)
+    except OSError as exc:
+        logger.error("OS error reading %s: %s", path, exc)
+    return None
+
+
+def _save_csv_safely(data_frame: pd.DataFrame, path: str) -> None:
+    """
+    Save a DataFrame to CSV with narrowed exception handling.
+
+    Args:
+        data_frame: The DataFrame to save.
+        path: Output CSV path.
+    """
+    try:
+        data_frame.to_csv(path, index=False)
+    except (PermissionError, OSError, ValueError) as exc:
+        logger.error("Failed to write results to %s: %s", path, exc)
+
+
+def _process_row(
+    data_frame: pd.DataFrame,
+    index: int,
+    total: int,
+    headers: Mapping[str, str],
+    output_csv: str,
+) -> None:
+    """
+    Process a single CSV row and persist progress.
+
+    Args:
+        data_frame: DataFrame holding repository rows.
+        index: Row index.
+        total: Total number of rows.
+        headers: HTTP headers (e.g., Authorization).
+        output_csv: Path for interim progress saves.
+    """
+    repo_url = data_frame.at[index, "html_url"]
+    logger.info("Processing repository %d/%d: %s", index + 1, total, repo_url)
+
+    try:
+        pct, cat = process_repository(repo_url, headers)
+    except (HTTPError, RequestException, Timeout) as exc:
+        logger.error("Network/API error for %s: %s", repo_url, exc)
+        return
+    except (KeyError, TypeError, ValueError) as exc:
+        logger.error("Data error for %s: %s", repo_url, exc)
+        return
+
+    if pct is not None and cat is not None:
+        data_frame.at[index, "comment_percentage"] = pct
+        data_frame.at[index, "comment_category"] = cat
+
+    _save_csv_safely(data_frame, output_csv)
+
+
+def analyze_repositories(input_csv: str, output_csv: str) -> None:
+    """
+    Analyze repositories listed in the input CSV and write results to output CSV.
+
+    Args:
+        input_csv: Path to the input CSV containing 'html_url' column.
+        output_csv: Path to the CSV to write results.
+    """
+    if not isinstance(TOKEN, str) or not TOKEN:
+        logger.error("GITHUB_TOKEN not found. Set it in your .env file.")
+        return
+
+    headers: Mapping[str, str] = {"Authorization": f"token {TOKEN}"}
+    data_frame = _read_input_csv(input_csv)
+    if data_frame is None:
+        return
+
+    if "html_url" not in data_frame.columns:
+        logger.error('Input file does not contain required "html_url" column.')
+        return
+
+    if "comment_percentage" not in data_frame.columns:
+        data_frame["comment_percentage"] = 0.0
+    if "comment_category" not in data_frame.columns:
+        data_frame["comment_category"] = ""
+
     total_repos = len(data_frame)
 
-    if 'comment_percentage' not in data_frame.columns:
-        data_frame['comment_percentage'] = 0
-    if 'comment_category' not in data_frame.columns:
-        data_frame['comment_category'] = ''
+    for idx, _row in data_frame.iterrows():
+        _process_row(data_frame, idx, total_repos, headers, output_csv)
 
-    for index, row in data_frame.iterrows():
-        repo_url = row['html_url']
-
-        # Skip rows with missing or non-string URLs
-        if not isinstance(repo_url, str) or not repo_url.startswith('https://github.com/'):
-            logging.warning("Skipping non-GitHub or invalid URL: %s", repo_url)
-            continue
-
-        logging.info("Processing repository %d/%d: %s", index + 1, total_repos, repo_url)
-        try:
-            comment_percentage, comment_category = process_repository(repo_url, headers)
-            if comment_percentage is not None and comment_category is not None:
-                data_frame.at[index, 'comment_percentage'] = comment_percentage
-                data_frame.at[index, 'comment_category'] = comment_category
-
-            # Save progress to output CSV
-            data_frame.to_csv(output_csv, index=False)
-        except HTTPError as http_err:
-            logging.error("HTTP error occurred for repository %s: %s", repo_url, http_err)
-        except Exception as error:
-            logging.error("Error processing repository %s: %s", repo_url, error)
-            continue
-
-    # Save the final data frame to the output CSV file
-    data_frame.to_csv(output_csv, index=False)
+    _save_csv_safely(data_frame, output_csv)
+    logger.info("Results saved to %s", output_csv)
 
 
-if __name__ == '__main__':
-    DESC = 'Analyze GitHub repositories for comments at start of files.'
-    parser = argparse.ArgumentParser(description=DESC)
-    parser.add_argument(
-        '--input',
-        default='../collect_repositories/results/repositories_filtered.csv',
-        help='Input CSV file containing repository URLs in "html_url" column'
+def _build_arg_parser() -> argparse.ArgumentParser:
+    """
+    Build and return the CLI argument parser.
+    """
+    parser = argparse.ArgumentParser(
+        description=(
+            "Analyze GitHub repositories for comments at the start of files."
+        )
     )
     parser.add_argument(
-        '--output',
-        default='results/soft_dev_pract.csv',
-        help='Output CSV file to save the analysis results'
+        "--input",
+        default="../collect_repositories/results/repositories_filtered.csv",
+        help=('Input CSV file containing repository URLs in "html_url" column'),
     )
-    args = parser.parse_args()
+    parser.add_argument(
+        "--output",
+        default="results/soft_dev_pract.csv",
+        help="Output CSV file to save the analysis results",
+    )
+    return parser
 
+
+def main() -> None:
+    """
+    Entry point for CLI execution.
+    """
+    logging.basicConfig(level=logging.INFO, format=LOG_FORMAT)
+    args = _build_arg_parser().parse_args()
     analyze_repositories(args.input, args.output)
+
+
+if __name__ == "__main__":
+    main()

@@ -24,7 +24,7 @@ from dotenv import load_dotenv
 script_dir = os.path.dirname(os.path.realpath(__file__))
 
 # Create the relative path to the .env file
-env_path = os.path.join(script_dir, '..', '..', '..', '.env')
+env_path = os.path.join(script_dir, '..', '..', '..','..', '.env')
 
 # Load the .env file
 load_dotenv(dotenv_path=env_path, override=True)
