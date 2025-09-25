@@ -5,7 +5,11 @@ This README provides structured,  instructions for two testing checks:
 1) **Folder name conventions** for Python (`test/`, `tests/`) and R (`test/`, `testthat/`)
 2) **Presence of root-level test folders** (`test`, `tests`)
 
-navigate to 
+To run the scripts navigate to: 
+
+```bash
+cd collect_varaibale
+```
 
 ## Scripts
 
