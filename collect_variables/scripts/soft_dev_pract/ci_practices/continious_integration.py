@@ -320,7 +320,7 @@ def main(input_csv_file, output_csv_file):
             continue
 
     # Final save
-    merged_df.to_csv(output_csv_file, index=Fcontinious_integration.pyalse)
+    merged_df.to_csv(output_csv_file, index=False)
 
 
 if __name__ == "__main__":
