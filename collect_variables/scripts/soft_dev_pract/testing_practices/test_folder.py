@@ -6,7 +6,7 @@ repositories specified in a CSV file.
 import os
 import time
 import argparse
-from typing import Optional, Set
+from typing import Optional, Set, List
 
 import pandas as pd
 from github import Github, GithubException, RateLimitExceededException  # pylint: disable=E0611
@@ -69,27 +69,47 @@ def _normalize_owner_repo(html_url: str) -> Optional[str]:
     return f"{owner}/{repo}"
 
 
-def check_test_folder(repo) -> bool:
+def _candidate_root_test_dirs(repo) -> List[str]:
     """
-    Check if a GitHub repository has a 'test' or
-    'tests' folder in its root directory.
+    Return a list of ROOT-LEVEL directory names that START WITH 'test' or 'tests'
+    (case-insensitive), e.g., 'test', 'tests', 'test-suite', 'pytest', 'tests_py'.
+    """
+    names: List[str] = []
+    contents = repo.get_contents("")  # root only
+    for item in contents:
+        if item.type == "dir":
+            name = (item.name or "").lower()
+            if name.startswith(("tests", "test")):
+                names.append(item.name)  # keep original casing
+    return names
 
-    Parameters:
-    repo (github.Repository.Repository): The GitHub repository to check.
 
-    Returns:
-    bool: True if 'test' or 'tests' (or 'inst') folder is found, False otherwise.
+def find_main_test_folder(repo) -> Optional[str]:
+    """
+    Choose a single 'main' test folder from root-level candidates.
+
+    Preference order:
+      1) 'tests' (exact, case-insensitive)
+      2) 'test'  (exact, case-insensitive)
+      3) otherwise, the longest name (more specific), then lexicographically.
     """
     try:
-        contents = repo.get_contents("")
-        for content in contents:
-            if content.type == "dir" and content.name.lower() in ["test", "tests", "inst"]:
-                return True
-        return False
-    except GithubException as github_exception:
-        print(f"Error accessing repository: {github_exception}")
-        # The caller decides how to record errors (we'll set NA in main)
-        return False
+        candidates = _candidate_root_test_dirs(repo)
+        if not candidates:
+            return None
+
+        lowered = [c.lower() for c in candidates]
+        if "tests" in lowered:
+            return candidates[lowered.index("tests")]
+        if "test" in lowered:
+            return candidates[lowered.index("test")]
+
+        # Most specific first (longest), then alphabetical for determinism
+        candidates.sort(key=lambda n: (-len(n), n.lower()))
+        return candidates[0]
+    except GithubException as e:
+        print(f"Error accessing repository: {e}")
+        return None
 
 
 def handle_rate_limit_error(exc: GithubException) -> None:
@@ -169,11 +189,16 @@ def main(input_csv: str, output_csv: str) -> None:
     existing_df = _load_existing_output(output_csv)
     merged_df = _outer_union_on_html_url(existing_df, input_df)
 
-    # Ensure target column exists with proper nullable boolean dtype
+    # Ensure target columns exist with proper dtypes
     if 'test_folder' not in merged_df.columns:
         merged_df['test_folder'] = pd.Series([pd.NA] * len(merged_df), dtype="boolean")
     else:
         merged_df['test_folder'] = merged_df['test_folder'].astype("boolean")
+
+    if 'test_folder_name' not in merged_df.columns:
+        merged_df['test_folder_name'] = pd.Series([pd.NA] * len(merged_df), dtype="string")
+    else:
+        merged_df['test_folder_name'] = merged_df['test_folder_name'].astype("string")
 
     # Only (re)process URLs from the current input
     to_process: Set[str] = set(map(str, input_df['html_url'].tolist()))
@@ -190,19 +215,28 @@ def main(input_csv: str, output_csv: str) -> None:
         if pd.isna(url) or not str(url).strip():
             print(f"Skipping row with missing URL at index {idx}")
             merged_df.at[idx, 'test_folder'] = pd.NA
+            merged_df.at[idx, 'test_folder_name'] = pd.NA
             continue
 
         owner_repo = _normalize_owner_repo(str(url))
         if owner_repo is None:
             print(f"Skipping non-GitHub or malformed URL: {url}")
             merged_df.at[idx, 'test_folder'] = pd.NA  # NA for non-GitHub domains
+            merged_df.at[idx, 'test_folder_name'] = pd.NA
             continue
 
         print(f"Working on repository: {url}")
         try:
             repo = github_instance.get_repo(owner_repo)
-            has_tests = check_test_folder(repo)
-            merged_df.at[idx, 'test_folder'] = bool(has_tests)
+            main_folder = find_main_test_folder(repo)
+
+            if main_folder:
+                merged_df.at[idx, 'test_folder'] = True
+                merged_df.at[idx, 'test_folder_name'] = main_folder
+            else:
+                merged_df.at[idx, 'test_folder'] = False
+                merged_df.at[idx, 'test_folder_name'] = ""  # checked, but none found
+
             processed += 1
             print(f"Repositories completed: {processed}")
 
@@ -211,14 +245,15 @@ def main(input_csv: str, output_csv: str) -> None:
 
         except RateLimitExceededException as exc:
             handle_rate_limit_error(exc)
-            # mark as NA and continue
             merged_df.at[idx, 'test_folder'] = pd.NA
+            merged_df.at[idx, 'test_folder_name'] = pd.NA
             merged_df.to_csv(output_csv, index=False)
             continue
         except GithubException as exc:
             handle_rate_limit_error(exc)
             print(f"Error accessing repository {owner_repo}: {exc}")
             merged_df.at[idx, 'test_folder'] = pd.NA
+            merged_df.at[idx, 'test_folder_name'] = pd.NA
             merged_df.to_csv(output_csv, index=False)
             continue
 
