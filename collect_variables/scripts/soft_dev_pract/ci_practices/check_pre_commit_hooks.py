@@ -20,7 +20,7 @@ from dotenv import load_dotenv
 
 # Constants
 RATE_LIMIT_SLEEP_MINUTES = 20
-GITHUB_HOSTS = ("https://github.com", "http://github.com")
+GITHUB_HOSTS = ("https://github.com", "http://github.com", "https://www.github.com", "http://www.github.com")
 PRECOMMIT_FILE = ".pre-commit-config.yaml"
 
 # Load .env file relative to this script
