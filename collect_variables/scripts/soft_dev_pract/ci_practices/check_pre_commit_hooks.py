@@ -21,7 +21,7 @@ from urllib.parse import urlparse
 
 # Constants
 RATE_LIMIT_SLEEP_MINUTES = 20
-GITHUB_HOSTS = ("https://github.com", "http://github.com")  # kept for backward compat use
+GITHUB_HOSTS = ("https://github.com", "http://github.com")  
 PRECOMMIT_FILE = ".pre-commit-config.yaml"
 
 # Load .env file relative to this script
@@ -206,11 +206,11 @@ def main(input_csv: str, output_csv: str) -> None:
     merged_df = _outer_union_on_html_url(existing_df, input_df)
 
     # Prepare output column as nullable boolean: True/False/NA
-    if "ci_hook" not in merged_df.columns:
-        merged_df["ci_hook"] = pd.Series([pd.NA] * len(merged_df), dtype="boolean")
+    if "pre_commit" not in merged_df.columns:
+        merged_df["pre_commit"] = pd.Series([pd.NA] * len(merged_df), dtype="boolean")
     else:
         # Ensure proper dtype (nullable boolean)
-        merged_df["ci_hook"] = merged_df["ci_hook"].astype("boolean")
+        merged_df["pre_commit"] = merged_df["pre_commit"].astype("boolean")
 
     # Process ONLY the repositories present in the current input
     to_process: Set[str] = set(map(str, input_df["html_url"].tolist()))
@@ -230,11 +230,11 @@ def main(input_csv: str, output_csv: str) -> None:
         #   Not Present -> False
         #   Not Supported / Error -> <NA>  (empty cell)
         if result == "Present":
-            merged_df.at[idx, "ci_hook"] = True
+            merged_df.at[idx, "pre_commit"] = True
         elif result == "Not Present":
-            merged_df.at[idx, "ci_hook"] = False
+            merged_df.at[idx, "pre_commit"] = False
         else:
-            merged_df.at[idx, "ci_hook"] = pd.NA
+            merged_df.at[idx, "pre_commit"] = pd.NA
             skipped_urls.append(html_url)
 
     try:
