@@ -6,9 +6,12 @@ repositories specified in a CSV file.
 import os
 import time
 import argparse
+from typing import Optional, Set
+
 import pandas as pd
 from github import Github, GithubException, RateLimitExceededException  # pylint: disable=E0611
 from dotenv import load_dotenv
+from urllib.parse import urlparse
 
 # Get the directory of the current script
 script_dir = os.path.dirname(os.path.realpath(__file__))
@@ -27,20 +30,46 @@ username = os.getenv('GITHUB_USERNAME')
 github_instance = Github(token)
 
 
-def is_github_url(url):
+def _normalize_owner_repo(html_url: str) -> Optional[str]:
     """
-    Check if the given URL is a GitHub URL.
+    Normalize and parse a URL into "owner/repo" for GitHub.
 
-    Parameters:
-    url (str): The URL to check.
+    Accepts:
+      - http(s)://github.com/owner/repo
+      - http(s)://www.github.com/owner/repo
+      - github.com/owner/repo
+      - www.github.com/owner/repo
 
-    Returns:
-    bool: True if the URL is a GitHub URL, False otherwise.
+    Returns "owner/repo" on success; None for non-GitHub/malformed URLs.
     """
-    return url.startswith('https://github.com')
+    if html_url is None:
+        return None
+
+    url = str(html_url).strip()
+    if not url:
+        return None
+
+    # Add scheme for bare domains
+    if url.startswith("github.com/") or url.startswith("www.github.com/"):
+        url = "https://" + url
+
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").lower()
+    if host not in {"github.com", "www.github.com"}:
+        return None
+
+    parts = [p for p in (parsed.path or "").split("/") if p]
+    if len(parts) < 2:
+        return None
+
+    owner, repo = parts[0], parts[1]
+    if repo.endswith(".git"):
+        repo = repo[:-4]
+
+    return f"{owner}/{repo}"
 
 
-def check_test_folder(repo):
+def check_test_folder(repo) -> bool:
     """
     Check if a GitHub repository has a 'test' or
     'tests' folder in its root directory.
@@ -49,7 +78,7 @@ def check_test_folder(repo):
     repo (github.Repository.Repository): The GitHub repository to check.
 
     Returns:
-    bool: True if 'test' or 'tests' folder is found, False otherwise.
+    bool: True if 'test' or 'tests' (or 'inst') folder is found, False otherwise.
     """
     try:
         contents = repo.get_contents("")
@@ -59,25 +88,67 @@ def check_test_folder(repo):
         return False
     except GithubException as github_exception:
         print(f"Error accessing repository: {github_exception}")
+        # The caller decides how to record errors (we'll set NA in main)
         return False
 
 
-def handle_rate_limit():
+def handle_rate_limit_error(exc: GithubException) -> None:
     """
-    Handle GitHub API rate limiting by waiting until the limit resets.
-
-    Parameters:
-    github_instance (Github): The GitHub instance to check rate limits.
+    Sleep 20 minutes when API rate limit is exceeded.
     """
-    rate_limit = github_instance.get_rate_limit().core
-    if rate_limit.remaining == 0:
-        reset_timestamp = rate_limit.reset.timestamp()
-        sleep_time = max(0, reset_timestamp - time.time())
-        print(f"Rate limit exceeded. Waiting for {sleep_time} seconds.")
-        time.sleep(sleep_time + 1)  # Sleep until rate limit is reset
+    msg = ""
+    try:
+        msg = exc.data.get("message", "")
+    except Exception:
+        pass
+    if "API rate limit exceeded" in msg:
+        print("Rate limit exceeded. Sleeping for 20 minutes...")
+        time.sleep(20 * 60)
 
 
-def main(input_csv, output_csv):
+def _read_input_csv(path: str) -> Optional[pd.DataFrame]:
+    try:
+        # Keep original behavior: semicolon input is common in your datasets
+        return pd.read_csv(path, sep=';', encoding='ISO-8859-1', on_bad_lines='warn')
+    except Exception as exc:
+        print(f"Error reading input CSV {path}: {exc}")
+        return None
+
+
+def _load_existing_output(path: str) -> Optional[pd.DataFrame]:
+    if not os.path.exists(path):
+        return None
+    try:
+        # Output is standard CSV (comma-separated)
+        return pd.read_csv(path)
+    except Exception as exc:
+        print(f"Error reading existing output CSV {path}: {exc}")
+        return None
+
+
+def _outer_union_on_html_url(old_df: Optional[pd.DataFrame], new_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Outer-union old and new by 'html_url' without losing columns/records.
+    Prefer existing values; fill gaps from new.
+    """
+    if old_df is None:
+        return new_df.copy()
+
+    if "html_url" not in old_df.columns or "html_url" not in new_df.columns:
+        return new_df.copy()
+
+    old_idx = old_df.set_index("html_url")
+    new_idx = new_df.set_index("html_url")
+    combined = old_idx.combine_first(new_idx)
+
+    # Bring in any columns only present in the new df
+    for col in new_idx.columns.difference(combined.columns):
+        combined[col] = new_idx[col]
+
+    return combined.reset_index()
+
+
+def main(input_csv: str, output_csv: str) -> None:
     """
     Main function to read the CSV file, check the repositories,
     and update the CSV file.
@@ -86,37 +157,73 @@ def main(input_csv, output_csv):
     input_csv (str): The path to the input CSV file.
     output_csv (str): The path to the output CSV file.
     """
-    data_frame = pd.read_csv(input_csv, sep=';', encoding='ISO-8859-1', on_bad_lines='warn')
-    if 'test_folder' not in data_frame.columns:
-        data_frame['test_folder'] = False
+    input_df = _read_input_csv(input_csv)
+    if input_df is None:
+        return
 
-    count = 0
-    for index, row in data_frame.iterrows():
+    if 'html_url' not in input_df.columns:
+        print("Input CSV must contain 'html_url' column.")
+        return
+
+    # Load existing output (if any) and outer-merge so nothing is lost
+    existing_df = _load_existing_output(output_csv)
+    merged_df = _outer_union_on_html_url(existing_df, input_df)
+
+    # Ensure target column exists with proper nullable boolean dtype
+    if 'test_folder' not in merged_df.columns:
+        merged_df['test_folder'] = pd.Series([pd.NA] * len(merged_df), dtype="boolean")
+    else:
+        merged_df['test_folder'] = merged_df['test_folder'].astype("boolean")
+
+    # Only (re)process URLs from the current input
+    to_process: Set[str] = set(map(str, input_df['html_url'].tolist()))
+
+    processed = 0
+    for idx, row in merged_df.iterrows():
         url = row['html_url']
-        if pd.isna(url):
-            print("Skipping row with missing URL")
+
+        # Only process current input rows; preserve others
+        if str(url) not in to_process:
             continue
 
-        if not is_github_url(url):
-            print(f"Skipping non-GitHub URL: {url}")
+        # Skip null/empty URLs but keep the row as NA
+        if pd.isna(url) or not str(url).strip():
+            print(f"Skipping row with missing URL at index {idx}")
+            merged_df.at[idx, 'test_folder'] = pd.NA
+            continue
+
+        owner_repo = _normalize_owner_repo(str(url))
+        if owner_repo is None:
+            print(f"Skipping non-GitHub or malformed URL: {url}")
+            merged_df.at[idx, 'test_folder'] = pd.NA  # NA for non-GitHub domains
             continue
 
         print(f"Working on repository: {url}")
-        repo_name = url.split('https://github.com/')[-1]
         try:
-            handle_rate_limit()
-            repo = github_instance.get_repo(repo_name)
-            data_frame.loc[index, 'test_folder'] = check_test_folder(repo)
-            count += 1
-            print(f"Repositories completed: {count}")
-        except RateLimitExceededException:
-            handle_rate_limit()
+            repo = github_instance.get_repo(owner_repo)
+            has_tests = check_test_folder(repo)
+            merged_df.at[idx, 'test_folder'] = bool(has_tests)
+            processed += 1
+            print(f"Repositories completed: {processed}")
+
+            # Persist progress after each repository
+            merged_df.to_csv(output_csv, index=False)
+
+        except RateLimitExceededException as exc:
+            handle_rate_limit_error(exc)
+            # mark as NA and continue
+            merged_df.at[idx, 'test_folder'] = pd.NA
+            merged_df.to_csv(output_csv, index=False)
             continue
-        except GithubException as github_exception:
-            print(f"Error accessing repository {repo_name}: {github_exception}")
+        except GithubException as exc:
+            handle_rate_limit_error(exc)
+            print(f"Error accessing repository {owner_repo}: {exc}")
+            merged_df.at[idx, 'test_folder'] = pd.NA
+            merged_df.to_csv(output_csv, index=False)
             continue
 
-    data_frame.to_csv(output_csv, index=False)
+    # Final save
+    merged_df.to_csv(output_csv, index=False)
 
 
 if __name__ == "__main__":
