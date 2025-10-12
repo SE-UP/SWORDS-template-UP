@@ -36,6 +36,15 @@ python3 scripts/soft_dev_pract/dependency_practices/requirement_explicit.py \
   --output <output_csv_file>
 ```
 
+### 2) ``
+
+```bash
+python3 scripts/soft_dev_pract/dependency_practices/cpp_dependencies.py \
+  --input path/to/input.csv \
+  --output path/to/output.csv
+```
+
+
 ## Example `input file`
 
 ```csv
@@ -44,3 +53,11 @@ https://github.com/owner/repo1
 https://github.com/owner/repo2
 https://github.com/another-owner/repo3
 ```
+
+
+References:
+
+C++ CMake, make, Ninja 
+[1] https://cmake.org/cmake/help/latest/manual/cmake.1.html
+[2] https://earthly.dev/blog/cmake-vs-make-diff/
+[3] https://ninja-build.org/manual.html
