@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Scan GitHub repositories for CI YAML files and detect language-specific test rules.
 
@@ -218,7 +220,15 @@ class RepoScanner:
             logging.debug("Rate limit check failed: %s", exc)
 
     def list_dir(self, repo, path: str) -> List:
-        """List directory contents or return empty list if missing."""
+        """List directory contents or return empty list if missing.
+
+        Args:
+            repo: PyGithub Repository object.
+            path: Directory path in the repo.
+
+        Returns:
+            List of ContentFile objects; empty on error/not found.
+        """
         self.ensure_rate_limit()
         try:
             items = repo.get_contents(path)
@@ -230,10 +240,21 @@ class RepoScanner:
             return []
 
     def read_file_text(self, repo, path: str) -> Optional[str]:
-        """Read file text content; return None if not found or on API error."""
+        """Read file text content; return None if not found or if path is a directory.
+
+        Args:
+            repo: PyGithub Repository object.
+            path: File path in the repo.
+
+        Returns:
+            UTF-8 decoded text or None.
+        """
         self.ensure_rate_limit()
         try:
             obj = repo.get_contents(path)
+            # If 'path' is a directory, PyGithub returns a list of ContentFile objects.
+            if isinstance(obj, list):
+                return None  # it's a directory, not a file
             return obj.decoded_content.decode("utf-8", errors="replace")
         except UnknownObjectException:
             return None
@@ -288,8 +309,11 @@ class RepoScanner:
         for tool, cfg in CI_PATTERNS.items():
             detected = False
             for d_path in cfg["detectors"]:
-                # file or directory presence
-                if self.read_file_text(repo, d_path) is not None or self.list_dir(repo, d_path):
+                # Check directory first; then file.
+                if self.list_dir(repo, d_path):
+                    detected = True
+                    break
+                if self.read_file_text(repo, d_path) is not None:
                     detected = True
                     break
             if not detected:
@@ -470,6 +494,7 @@ def main() -> None:
     try:
         process_csv(args.input, args.output)
     except Exception as exc:  # pylint: disable=broad-except
+            # Keep a broad catch to log unexpected failures and exit non-zero in CI.
         logging.exception("Fatal error: %s", exc)
         sys.exit(1)
 
