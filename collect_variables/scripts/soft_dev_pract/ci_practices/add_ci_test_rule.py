@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Scan GitHub repositories for CI YAML files and detect language-specific test rules.
 
