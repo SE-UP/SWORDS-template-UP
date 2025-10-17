@@ -71,15 +71,15 @@ def _normalize_owner_repo(html_url: str) -> Optional[str]:
 
 def _candidate_root_test_dirs(repo) -> List[str]:
     """
-    Return a list of ROOT-LEVEL directory names that START WITH 'test' or 'tests'
-    (case-insensitive), e.g., 'test', 'tests', 'test-suite', 'pytest', 'tests_py'.
+    Return ROOT-LEVEL directory names that CONTAIN 'test' anywhere (case-insensitive),
+    e.g., 'test', 'tests', 'test-suite', 'tests_py', 'testpy', 'pytest', 'contest', 'attestation'.
     """
     names: List[str] = []
     contents = repo.get_contents("")  # root only
     for item in contents:
         if item.type == "dir":
-            name = (item.name or "").lower()
-            if name.startswith(("tests", "test")):
+            name_lc = (item.name or "").lower()
+            if "test" in name_lc:   # broadened match
                 names.append(item.name)  # keep original casing
     return names
 
