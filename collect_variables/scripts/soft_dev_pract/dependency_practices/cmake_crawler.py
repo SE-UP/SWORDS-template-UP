@@ -350,7 +350,7 @@ def process_csv_and_handle_repos(csv_file_path : str, csv_outfile_path : str) ->
                 entry_number = row.get("joss_id", "")
                 repo_url     = row.get("html_url", "")
 
-                print(f"Crawling {row.get("doi", "")} with URL {repo_url}.")
+                #print(f"Crawling {row.get("doi", "")} with URL {repo_url}.")
 
 
                 result_json, repo_structure = analyze_repo(entry_number, repo_url)
@@ -378,7 +378,7 @@ def process_csv_and_handle_repos(csv_file_path : str, csv_outfile_path : str) ->
 
                 results.append(row)
 
-                print(f"Finished analysis of {row.get("doi", "")} with URL {repo_url}.")
+                #print(f"Finished analysis of {row.get("doi", "")} with URL {repo_url}.")
 
 
         with open(csv_outfile_path, mode='w', newline='', encoding='utf-8') as csvfile:
