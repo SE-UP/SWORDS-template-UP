@@ -370,8 +370,8 @@ def process_csv_and_handle_repos(csv_file_path : str, csv_outfile_path : str) ->
                 row["cmake_languages"] = ", ".join(data["languages"])
                 row["has_cmake_dependencies"] = (bool(data["dependencies"])
                                                 or bool(data["opt_dependencies"]))
-                row["has_cmake_pinned_req_deps"] = has_pinned_dependency(data["opt_dependencies"])
-                row["has_cmake_pinned_opt_deps"] = has_pinned_dependency(data["dependencies"])
+                row["has_cmake_pinned_req_deps"] = has_pinned_dependency(data["dependencies"])
+                row["has_cmake_pinned_opt_deps"] = has_pinned_dependency(data["opt_dependencies"])
                 row["has_cmake_tests"] = data["tests_found"]
                 row["has_gtest_dep"]   = data["uses_gtest"]
                 row["has_catch2_dep"]  = data["uses_catch2"]
