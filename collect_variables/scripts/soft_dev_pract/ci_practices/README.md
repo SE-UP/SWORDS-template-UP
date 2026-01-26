@@ -54,6 +54,30 @@ python3 scripts/soft_dev_pract/ci_practices/add_ci_rules.py \
 
 ---
 
+### 4) `add_ci_test_rule.py`
+
+**Purpose**  
+Scans YAML files in CI tools to detect testing libraries for **Python**, **R**, and **C++**.
+
+**Run**
+```bash
+python3 scripts/soft_dev_pract/ci_practices/add_ci_test_rule.py \
+  --input results/repository_links.csv \
+  --output results/output.csv
+```
+It creates following columns as output 
+
+| Column name               | In 3 words        |
+|---------------------------|-------------------|
+| `ci_tool_detected`        | Detected CI tools |
+| `test_rule_in_ci`         | Test keywords present |
+| `file_ci_test_rule_found` | YAML files matched |
+| `test_keyword_found`      | Matched keywords  |
+
+Note before running abvoe script make sure you have required columns to do furhter analysis. You need to collect those columns by running github_api/enrich_repo_data.py (this will generate required column Language) 
+
+---
+
 
 
 ## Example `input file`
@@ -64,3 +88,5 @@ https://github.com/owner/repo1
 https://github.com/owner/repo2
 https://github.com/another-owner/repo3
 ```
+
+

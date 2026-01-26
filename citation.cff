@@ -17,6 +17,10 @@ authors:
     affiliation: University of Potsdam
     family-names: Lamprecht
     orcid: 'https://orcid.org/0000-0003-1953-5606'
+  - given-names: Mario
+    family-names: Frank
+    affiliation: University of Potsdam
+    orcid: 'http://orcid.org/0000-0001-8888-7475'
 repository-code: >-
   https://github.com/Software-Engineering-Group-UP/SWORDS-template-UP/releases/tag/v1.0.0
 abstract: >-

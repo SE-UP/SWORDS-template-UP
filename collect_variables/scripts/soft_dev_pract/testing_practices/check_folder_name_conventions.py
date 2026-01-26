@@ -25,6 +25,8 @@ gh = GhApi(token=token)
 
 TEST_FOLDERS: List[str] = [
     "unit",
+    "module",
+    "component",
     "integration",
     "system",
     "e2e",

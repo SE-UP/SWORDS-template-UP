@@ -11,16 +11,17 @@ import argparse
 import logging
 import os
 import time
-from typing import Optional, List
+from typing import Optional, List, Tuple, Set
 
 import pandas as pd
 from pandas.errors import EmptyDataError, ParserError
 from github import Github, GithubException, RateLimitExceededException
 from dotenv import load_dotenv
+from urllib.parse import urlparse
 
 # Constants
 RATE_LIMIT_SLEEP_MINUTES = 20
-GITHUB_HOSTS = ("https://github.com", "http://github.com")
+GITHUB_HOSTS = ("https://github.com", "http://github.com")  
 PRECOMMIT_FILE = ".pre-commit-config.yaml"
 
 # Load .env file relative to this script
@@ -29,6 +30,44 @@ ENV_PATH = os.path.join(SCRIPT_DIR, "..", "..", "..", "..", ".env")
 load_dotenv(dotenv_path=ENV_PATH, override=True)
 
 logger = logging.getLogger(__name__)
+
+
+def _parse_github_owner_repo(html_url: str) -> Optional[Tuple[str, str]]:
+    """
+    Normalize and parse a GitHub URL into (owner, repo).
+
+    Accepts:
+      - http(s)://github.com/owner/repo
+      - http(s)://www.github.com/owner/repo
+      - github.com/owner/repo
+      - www.github.com/owner/repo
+
+    Returns:
+      (owner, repo) on success, else None for non-GitHub or malformed URLs.
+    """
+    url = str(html_url).strip()
+
+    # Add scheme for bare domains
+    if url.startswith("github.com/") or url.startswith("www.github.com/"):
+        url = "https://" + url
+
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").lower()
+
+    if host not in {"github.com", "www.github.com"}:
+        return None
+
+    # Path like "/owner/repo[/...]"
+    parts = [p for p in parsed.path.split("/") if p]
+    if len(parts) < 2:
+        return None
+
+    owner, repo_name = parts[0], parts[1]
+    # strip trailing .git if present
+    if repo_name.endswith(".git"):
+        repo_name = repo_name[:-4]
+
+    return owner, repo_name
 
 
 def check_ci_hook(html_url: str, github_instance: Github) -> str:
@@ -42,14 +81,11 @@ def check_ci_hook(html_url: str, github_instance: Github) -> str:
     Returns:
         One of: 'Present', 'Not Present', 'Not Supported', or 'Error'.
     """
-    if not html_url.startswith(GITHUB_HOSTS):
+    owner_repo = _parse_github_owner_repo(html_url)
+    if owner_repo is None:
         return "Not Supported"
 
-    parts = html_url.rstrip("/").split("/")
-    if len(parts) < 5:
-        return "Error"
-
-    owner, repo_name = parts[-2], parts[-1]
+    owner, repo_name = owner_repo
     result = "Error"  # Default if something goes wrong
 
     # Retry loop for rate limits; avoids recursion and extra returns
@@ -106,6 +142,40 @@ def _read_input_csv(path: str) -> Optional[pd.DataFrame]:
         return None
 
 
+def _load_existing_output(output_csv: str) -> Optional[pd.DataFrame]:
+    """Load existing output CSV if it exists; return None otherwise."""
+    try:
+        if os.path.exists(output_csv):
+            return pd.read_csv(output_csv)
+    except Exception as exc:  # be tolerant; don't crash the run
+        logger.error("Error reading existing output %s: %s", output_csv, exc)
+    return None
+
+
+def _outer_union_on_html_url(old_df: Optional[pd.DataFrame], new_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Outer-union old and new frames by 'html_url' without losing any columns/records.
+    Prefer existing values where both have the same cell; fill gaps from new.
+    """
+    if old_df is None:
+        return new_df.copy()
+
+    if "html_url" not in old_df.columns or "html_url" not in new_df.columns:
+        return new_df.copy()
+
+    old_idx = old_df.set_index("html_url")
+    new_idx = new_df.set_index("html_url")
+
+    # Combine: keep existing values, fill with new
+    combined = old_idx.combine_first(new_idx)
+
+    # Also bring in any columns present only in the new df
+    for col in new_idx.columns.difference(combined.columns):
+        combined[col] = new_idx[col]
+
+    return combined.reset_index()
+
+
 def main(input_csv: str, output_csv: str) -> None:
     """
     Main logic to check repositories and save results.
@@ -123,30 +193,52 @@ def main(input_csv: str, output_csv: str) -> None:
 
     github_instance = Github(token)
 
-    data = _read_input_csv(input_csv)
-    if data is None:
+    input_df = _read_input_csv(input_csv)
+    if input_df is None:
         return
 
-    if "html_url" not in data.columns:
+    if "html_url" not in input_df.columns:
         logger.error("Input file does not contain 'html_url' column.")
         return
 
-    data["ci_hook"] = ""
-    skipped_urls: List[str] = []  # Py3.6–3.12 compatible
+    # Load existing output (if any) and union so no previous data is lost.
+    existing_df = _load_existing_output(output_csv)
+    merged_df = _outer_union_on_html_url(existing_df, input_df)
 
-    for index, row in data.iterrows():
-        html_url = row["html_url"]
+    # Prepare output column as nullable boolean: True/False/NA
+    if "pre_commit" not in merged_df.columns:
+        merged_df["pre_commit"] = pd.Series([pd.NA] * len(merged_df), dtype="boolean")
+    else:
+        # Ensure proper dtype (nullable boolean)
+        merged_df["pre_commit"] = merged_df["pre_commit"].astype("boolean")
+
+    # Process ONLY the repositories present in the current input
+    to_process: Set[str] = set(map(str, input_df["html_url"].tolist()))
+    skipped_urls: List[str] = []
+
+    for idx, row in merged_df.iterrows():
+        html_url = str(row["html_url"])
+        if html_url not in to_process:
+            continue  # keep prior result/data untouched
+
         logger.info("Processing: %s", html_url)
 
-        # Errors are handled in check_ci_hook and mapped to "Error"
         result = check_ci_hook(html_url, github_instance)
-        data.at[index, "ci_hook"] = result
 
-        if result in ("Error", "Not Supported"):
+        # Map to boolean/NA for CSV:
+        #   Present -> True
+        #   Not Present -> False
+        #   Not Supported / Error -> <NA>  (empty cell)
+        if result == "Present":
+            merged_df.at[idx, "pre_commit"] = True
+        elif result == "Not Present":
+            merged_df.at[idx, "pre_commit"] = False
+        else:
+            merged_df.at[idx, "pre_commit"] = pd.NA
             skipped_urls.append(html_url)
 
     try:
-        data.to_csv(output_csv, index=False)
+        merged_df.to_csv(output_csv, index=False)
         logger.info("Results saved to %s", output_csv)
 
         skipped_file = output_csv.replace(".csv", "_skipped_urls.txt")
