@@ -1,0 +1,6 @@
+status,paper_url,issue_url,doi,joss_id,title,html_url
+published,https://joss.theoj.org/papers/10.21105/joss.08038,,10.21105/joss.08038,8038,"PyDrugLogics: A Python Package for Predicting Drug Synergies Using Boolean Models",https://github.com/druglogics/pydruglogics
+published,https://joss.theoj.org/papers/10.21105/joss.09129,,10.21105/joss.09129,9129,"PIVA: Photoemission Interface for Visualization and Analysis",https://github.com/pudeIko/piva
+published,https://joss.theoj.org/papers/10.21105/joss.07947,,10.21105/joss.07947,7947,"pykoop: a Python Library for Koopman Operator Approximation",https://github.com/decargroup/pykoop
+published,https://joss.theoj.org/papers/10.21105/joss.08862,,10.21105/joss.08862,8862,"Ivy: A Data Acquisition System for Distributed Sensor Networks Supporting Remote Configuration and Software Updates",https://github.com/tum-esm/ivy
+published,https://joss.theoj.org/papers/10.21105/joss.08862,,10.21105/joss.08862,8862,"Fake data added to check the execution",https://github.com/SE-UP/SWORDS-template-UP

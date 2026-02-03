@@ -20,9 +20,10 @@ the metadata fields empty while keeping the original data intact.
 
 import os
 import time
+import json #construct url and parse object eg: https://api.github.com/repos/SE-UP/SWORDS-template-UP/languages
 import argparse
 import pandas as pd
-import chardet  # Ensure chardet is imported
+import chardet  
 from dotenv import load_dotenv
 from ghapi.all import GhApi
 
@@ -65,6 +66,34 @@ def handle_rate_limit():
     print('API rate limit exceeded. Sleeping for 15 minutes...')
     time.sleep(15 * 60)  # Sleep for 15 minutes
 
+def get_repo_languages_json(owner, repo_name):
+    """
+    Fetch languages for a repo and return them as a JSON dict string:
+    e.g. {"Python": 72.4, "C": 19.6}
+    Values are percentages (0-100).
+    """
+    try:
+        lang_bytes = api.repos.list_languages(owner, repo_name)  # dict {lang: bytes}
+        if not lang_bytes:
+            return json.dumps({})
+
+        total = sum(lang_bytes.values())
+        if total == 0:
+            return json.dumps({})
+
+        lang_percent = {
+            lang: round((bytes_count / total) * 100, 2)
+            for lang, bytes_count in lang_bytes.items()
+        }
+
+        # Optional: sort keys by percentage descending (to keep output readable)
+        lang_percent = dict(sorted(lang_percent.items(), key=lambda x: x[1], reverse=True))
+
+        return json.dumps(lang_percent)
+
+    except Exception as e:
+        print(f"Error fetching languages for {owner}/{repo_name}: {e}")
+        return json.dumps({})
 
 def get_repo_metadata(repo_url):
     """
@@ -86,6 +115,10 @@ def get_repo_metadata(repo_url):
 
         # Fetch repository data using GitHub API
         repo_data = api.repos.get(owner, repo_name)
+
+        #fetch all languages & % JSON object(eg. https://api.github.com/repos/SE-UP/SWORDS-template-UP/languages)
+        languages_json = get_repo_languages_json(owner, repo_name)
+
 
         # Fetch contributors with pagination handling
         contributors = []
@@ -127,6 +160,7 @@ def get_repo_metadata(repo_url):
             'Issues': repo_data.open_issues_count,
             'Watchers': repo_data.watchers_count,
             'Language': repo_data.language or 'N/A',
+            'languages_json': languages_json,
             'License': repo_data.license['name'] if repo_data.license else 'N/A',
             'Created Date': repo_data.created_at,
             'Updated Date': repo_data.updated_at,
