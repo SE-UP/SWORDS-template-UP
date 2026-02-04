@@ -1,8 +1,9 @@
-"""Checks types of testing in GitHub repositories by analyzing test folder (test/tests for python 
-and test/testthat for R) names.
+"""Checks types of testing in GitHub repositories by analyzing test sub folders names.
+For Python/C++ it scans `test/` and `tests/` for test-type subfolders.
+For R it checks `test/testthat`, `tests/testthat`, `test/tinytest`, `tests/tinytest`.
 
 Usage: Navigate to the directory containing this script and run:
-    python check_folder_name_conventions.py 
+    python check_folder_name_conventions.py
     --input path/to/input.csv --output path/to/output
 """
 import argparse
@@ -40,8 +41,8 @@ TEST_FOLDERS: List[str] = [
     "metamorphic",
 ]
 
-PYTHON_CPP_TEST_DIRS = ["test/", "tests/"]
-R_TEST_DIRS = ["test/tinytest/", "test/testthat/", "tests/testthat/", "test/tinytest/"]
+PYTHON_CPP_TEST_DIRS = ["test", "tests"]
+R_TEST_DIRS = ["test/tinytest", "test/testthat", "tests/testthat", "test/tinytest"]
 
 
 def search_test_folders(repo_full_name: str, lang: str) -> Tuple[List[str], List[str]]:
@@ -62,33 +63,46 @@ def search_test_folders(repo_full_name: str, lang: str) -> Tuple[List[str], List
     other_folders: List[str] = []
 
     try:
-        root_contents = gh.repos.get_content(*repo_full_name.split("/"), path="")
-        root_test_folders = [
-            content["path"]
-            for content in root_contents
-            if content["type"] == "dir" and content["name"] in ["test", "tests"]
-        ]
+        if lang == "r":
+            for test_dir in R_TEST_DIRS:
+                try:
+                    gh.repos.get_content(*repo_full_name.split("/"), path=test_dir)
+                    found_folders.append(os.path.basename(test_dir.rstrip("/")))
+                except FastcoreHTTPError as exc:
+                    if "not found" in str(exc).lower():
+                        continue
+                    print(f"Error searching folders in repository {repo_full_name}: {exc}")
+                except RequestException as exc:
+                    print(f"Error searching folders in repository {repo_full_name}: {exc}")
+        else:
+            root_contents = gh.repos.get_content(*repo_full_name.split("/"), path="")
+            root_test_folders = [
+                content["path"]
+                for content in root_contents
+                if content["type"] == "dir" and content["path"] in PYTHON_CPP_TEST_DIRS
+            ]
 
-        for test_folder in root_test_folders:
-            subcontents = gh.repos.get_content(*repo_full_name.split("/"), path=test_folder)
-            for item in subcontents:
-                if item["type"] == "dir":
-                    if item["name"].lower() in TEST_FOLDERS:
-                        found_folders.append(item["name"])
-                    else:
-                        other_folders.append(item["name"])
+            for test_folder in root_test_folders:
+                subcontents = gh.repos.get_content(*repo_full_name.split("/"), path=test_folder)
+                for item in subcontents:
+                    if item["type"] == "dir":
+                        if item["name"].lower() in TEST_FOLDERS:
+                            found_folders.append(item["name"])
+                        else:
+                            other_folders.append(item["name"])
     except (RequestException, FastcoreHTTPError) as exc:
         print(f"Error searching folders in repository {repo_full_name}: {exc}")
 
     return list(set(found_folders)), list(set(other_folders))
 
 
-def analyze_repo(url: str) -> Tuple[List[str], List[str]]:
+def analyze_repo(url: str, lang_hint: Optional[str]) -> Tuple[List[str], List[str]]:
     """
     Inspect a single repository URL and return its test and other folder names.
 
     Args:
         url: The repository HTML URL.
+        lang_hint: Language from CSV ("Language" column), used to select test folder rules.
 
     Returns:
         A tuple of two lists:
@@ -105,8 +119,15 @@ def analyze_repo(url: str) -> Tuple[List[str], List[str]]:
     while True:
         try:
             repo_full_name = url.split("github.com/")[1].strip("/")
-            repo = gh.repos.get(*repo_full_name.split("/"))
-            lang: Optional[str] = repo["language"].lower() if repo["language"] else None
+            lang_normalized = (lang_hint or "").strip().lower()
+            if lang_normalized == "cpp":
+                lang_normalized = "c++"
+
+            if lang_normalized:
+                lang = lang_normalized
+            else:
+                repo = gh.repos.get(*repo_full_name.split("/"))
+                lang = repo["language"].lower() if repo["language"] else None
 
             if lang in ["python", "r", "c++"]:
                 print(f"Checking repository: {repo_full_name}, Language: {lang}")
@@ -139,7 +160,7 @@ def process_csv(input_file: str, output_file: str) -> None:
     Read repositories from a CSV, scan for test folder conventions, and write results to a CSV.
 
     Args:
-        input_file: Path to the input CSV containing a column named "html_url".
+        input_file: Path to the input CSV containing "html_url" and "Language".
         output_file: Path to the output CSV that will include "test_type" and
             "other_folders" columns.
 
@@ -148,12 +169,19 @@ def process_csv(input_file: str, output_file: str) -> None:
     """
     with open(input_file, newline="", encoding="utf-8") as csvfile:
         reader = csv.DictReader(csvfile, delimiter=",")
+
+        required_cols = {"html_url", "Language"}
+        missing = required_cols - set(reader.fieldnames or [])
+        if missing:
+            raise ValueError(f"Required columns not found in input CSV: {sorted(missing)}")
+
         fieldnames = (reader.fieldnames or []) + ["test_type", "other_folders"]
         results = []
 
         for row in reader:
             url = row.get("html_url", "")
-            tests, others = analyze_repo(url)
+            lang_hint = row.get("Language", "")
+            tests, others = analyze_repo(url, lang_hint)
             row["test_type"] = tests
             row["other_folders"] = others
             results.append(row)
