@@ -17,8 +17,8 @@ cd collect_varaibale
 
 **Purpose**  
 Checks types of testing folder conventions by analyzing repository test directories:
-- **Python:** `test/` or `tests/`  
-- **R:** `test/` or `testthat/`  
+- **Python and C++:** `test/` or `tests/`  
+- **R:** `test/testthat` or `tests/testthat` or `test/tinytest` or `tests/tinytest` 
 
 **Run (using the same paths as above)**
 ```bash
@@ -32,7 +32,7 @@ python3 scripts/soft_dev_pract/testing_practices/check_folder_name_conventions.p
 ### 2) `test_folder.py`
 
 **Purpose**  
-Checks for the presence of **root-level** `test` or `tests` directories in each repository from the CSV.
+Checks for the presence of **root-level** `test` or `tests` or `*test*`directories in each repository from the CSV.
 
 **Run (using the same paths as above)**
 ```bash
