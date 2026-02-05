@@ -150,20 +150,20 @@ def process_csv(input_file: str, output_file: str) -> None:
     Read input CSV, scan repos, and write output CSV with results.
 
     Args:
-        input_file: Path to input CSV (must include column "html_ur").
+        input_file: Path to input CSV (must include column "html_url").
         output_file: Path to output CSV.
 
     Returns:
         None
 
     Raises:
-        ValueError: If required column "html_ur" is missing from the input CSV.
+        ValueError: If required column "html_url" is missing from the input CSV.
         OSError: If input/output files cannot be opened or written.
     """
     with open(input_file, newline="", encoding="utf-8") as csvfile:
         reader = csv.DictReader(csvfile, delimiter=",")
-        if not reader.fieldnames or "html_ur" not in reader.fieldnames:
-            raise ValueError("Required column not found in input CSV: html_ur")
+        if not reader.fieldnames or "html_url" not in reader.fieldnames:
+            raise ValueError("Required column not found in input CSV: html_url")
 
         fieldnames = list(reader.fieldnames) + [
             "perf_bench_folder_found",
@@ -172,7 +172,7 @@ def process_csv(input_file: str, output_file: str) -> None:
         results = []
 
         for row in reader:
-            url = row.get("html_ur", "")
+            url = row.get("html_url", "")
             found, name = analyze_repo(url)
             row["perf_bench_folder_found"] = found
             row["perf_bench_name"] = name
