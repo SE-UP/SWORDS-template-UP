@@ -27,6 +27,16 @@ python3 scripts/soft_dev_pract/testing_practices/check_folder_name_conventions.p
   --output results/test_folder_conventions.csv
 ```
 
+To get the language column run script enrich_repo_data.py
+
+```csv
+html_url, Language
+https://github.com/owner/repo1, Python
+https://github.com/owner/repo2, R
+https://github.com/another-owner/repo3, C++
+```
+
+
 ---
 
 ### 2) `test_folder.py`
@@ -43,9 +53,23 @@ python3 scripts/soft_dev_pract/testing_practices/test_folder.py \
 
 ---
 
-## Generic Input/Output Schemas
 
-### Input CSV Schema
+### 2) `check_perf_bench.py`
+
+**Purpose**  
+Checks for the presence of **root-level** `*performance*` or `*benchmark*` or `*perf*` or `*bench*` directories in each repository from the CSV.
+
+**Run**
+```bash
+python3 scripts/soft_dev_pract/testing_practices/check_perf_bench.py \
+  --input results/repositories.csv \
+  --output results/test_folder_presence.csv
+```
+
+Note: As it looks for folder names that contains `*perf*` and `*bench*` there is need to manually check the results for false positive. 
+---
+
+### Input CSV 
 
 - **Required columns**
   - `html_url` — Full HTTPS GitHub repo URL (e.g., `https://github.com/owner/repo`)
@@ -56,6 +80,8 @@ https://github.com/owner/repo1
 https://github.com/owner/repo2
 https://github.com/another-owner/repo3
 ```
+
+
 
 
 Todo: 
