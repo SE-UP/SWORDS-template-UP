@@ -42,7 +42,7 @@ https://github.com/another-owner/repo3, C++
 ### 2) `test_folder.py`
 
 **Purpose**  
-Checks for the presence of **root-level** `test` or `tests` or `*test*`directories in each repository from the CSV.
+Checks for the presence of **root-level** `test` or `tests` or `*test*`directories in each repository from the CSV. And check if the folder is non empty traverse into (sub)folder of detected test folder and find out programming language found (Python, R, C++ or bash) stops when found (only ensures presence of programming language script in the folder). 
 
 **Run (using the same paths as above)**
 ```bash
