@@ -1,6 +1,7 @@
 """
 Checks 'test' or 'tests' directories at the root level of GitHub
 repositories specified in a CSV file.
+And check if the folder is non empty and contains files with extensions .py, .r, .cpp, or .sh.
 """
 
 import os
@@ -9,7 +10,7 @@ import argparse
 from typing import Optional, Set, List
 
 import pandas as pd
-from github import Github, GithubException, RateLimitExceededException  # pylint: disable=E0611
+from github import Github, GithubException, RateLimitExceededException  
 from dotenv import load_dotenv
 from urllib.parse import urlparse
 
@@ -73,6 +74,7 @@ def _candidate_root_test_dirs(repo) -> List[str]:
     """
     Return ROOT-LEVEL directory names that CONTAIN 'test' anywhere (case-insensitive),
     e.g., 'test', 'tests', 'test-suite', 'tests_py', 'testpy', 'pytest', 'contest', 'attestation'.
+    Note: need manual validation of column name test_folder_name
     """
     names: List[str] = []
     contents = repo.get_contents("")  # root only
@@ -82,6 +84,34 @@ def _candidate_root_test_dirs(repo) -> List[str]:
             if "test" in name_lc:   # broadened match
                 names.append(item.name)  # keep original casing
     return names
+
+
+def _scan_test_folder(repo, root_path: str, exts: Set[str]) -> (bool, List[str]):
+    """
+    Recursively scan a test folder for programming files.
+
+    Returns:
+      - non_empty: True if any item exists under root_path
+      - found_exts: list of found extensions (deduped)
+    """
+    stack = [root_path]
+    found_exts: Set[str] = set()
+    non_empty = False
+
+    while stack:
+        path = stack.pop()
+        contents = repo.get_contents(path)
+        if contents:
+            non_empty = True
+        for item in contents:
+            if item.type == "dir":
+                stack.append(item.path)
+            elif item.type == "file":
+                ext = os.path.splitext(item.name)[1].lower()
+                if ext in exts:
+                    found_exts.add(ext)
+
+    return non_empty, sorted(found_exts)
 
 
 def find_main_test_folder(repo) -> Optional[str]:
@@ -200,6 +230,16 @@ def main(input_csv: str, output_csv: str) -> None:
     else:
         merged_df['test_folder_name'] = merged_df['test_folder_name'].astype("string")
 
+    if 'test_folder_non_empty' not in merged_df.columns:
+        merged_df['test_folder_non_empty'] = pd.Series([pd.NA] * len(merged_df), dtype="boolean")
+    else:
+        merged_df['test_folder_non_empty'] = merged_df['test_folder_non_empty'].astype("boolean")
+
+    if 'test_file_extention_found' not in merged_df.columns:
+        merged_df['test_file_extention_found'] = pd.Series([pd.NA] * len(merged_df), dtype="string")
+    else:
+        merged_df['test_file_extention_found'] = merged_df['test_file_extention_found'].astype("string")
+
     # Only (re)process URLs from the current input
     to_process: Set[str] = set(map(str, input_df['html_url'].tolist()))
 
@@ -233,9 +273,20 @@ def main(input_csv: str, output_csv: str) -> None:
             if main_folder:
                 merged_df.at[idx, 'test_folder'] = True
                 merged_df.at[idx, 'test_folder_name'] = main_folder
+                non_empty, found_exts = _scan_test_folder(
+                    repo,
+                    main_folder,
+                    {".py", ".r", ".cpp", ".sh"},
+                )
+                merged_df.at[idx, 'test_folder_non_empty'] = non_empty
+                merged_df.at[idx, 'test_file_extention_found'] = (
+                    "; ".join(found_exts) if found_exts else pd.NA
+                )
             else:
                 merged_df.at[idx, 'test_folder'] = False
                 merged_df.at[idx, 'test_folder_name'] = ""  # checked, but none found
+                merged_df.at[idx, 'test_folder_non_empty'] = False
+                merged_df.at[idx, 'test_file_extention_found'] = pd.NA
 
             processed += 1
             print(f"Repositories completed: {processed}")
