@@ -94,6 +94,38 @@ def _scan_test_folder(repo, root_path: str, exts: Set[str]) -> (bool, List[str])
       - non_empty: True if any item exists under root_path
       - found_exts: list of found extensions (deduped)
     """
+     # ---------------------------
+    # USe TRee Api (https://docs.github.com/en/rest/git/trees?apiVersion=2022-11-28) as we are looking for contents that may be hidden in nested fodlers 
+    # ---------------------------
+    try:
+        tree = repo.get_git_tree(repo.default_branch, recursive=True)
+
+        if not tree.truncated:
+            found_exts: Set[str] = set()
+            non_empty = False
+            prefix = root_path.rstrip("/") + "/"
+
+            for element in tree.tree:
+                if element.type != "blob":
+                    continue
+
+                if element.path.startswith(prefix):
+                    non_empty = True
+                    ext = os.path.splitext(element.path)[1].lower()
+                    if ext in exts:
+                        found_exts.add(ext)
+
+            return non_empty, sorted(found_exts)
+
+        else:
+            print(f"Tree truncated for {repo.full_name}, falling back to recursive scan.")
+
+    except Exception as e:
+        print(f"Git tree scan failed: {e}, falling back to recursive scan.")
+
+    # -----------------------------------
+    # FALLBACK: Use recursive
+    # -----------------------------------
     stack = [root_path]
     found_exts: Set[str] = set()
     non_empty = False
@@ -101,8 +133,10 @@ def _scan_test_folder(repo, root_path: str, exts: Set[str]) -> (bool, List[str])
     while stack:
         path = stack.pop()
         contents = repo.get_contents(path)
+
         if contents:
             non_empty = True
+
         for item in contents:
             if item.type == "dir":
                 stack.append(item.path)
@@ -159,7 +193,7 @@ def handle_rate_limit_error(exc: GithubException) -> None:
 def _read_input_csv(path: str) -> Optional[pd.DataFrame]:
     try:
         # Keep original behavior: semicolon input is common in your datasets
-        return pd.read_csv(path, sep=';', encoding='ISO-8859-1', on_bad_lines='warn')
+        return pd.read_csv(path, sep=',', encoding='ISO-8859-1', on_bad_lines='warn')
     except Exception as exc:
         print(f"Error reading input CSV {path}: {exc}")
         return None
