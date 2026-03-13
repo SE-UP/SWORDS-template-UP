@@ -93,7 +93,3 @@ def find_test_artifacts(root_path: str) -> List[str]:
     # for each config, find the test files
 
 
-# FutureTODO:
-# Prioritise pytest.toml since they have highest prio according to [1]
-# [1] https://docs.pytest.org/en/9.0.x/reference/customize.html
-# [2] https://docs.pytest.org/en/stable/reference/reference.html#confval-python_files

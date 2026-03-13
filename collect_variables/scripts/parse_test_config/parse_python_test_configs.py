@@ -43,16 +43,16 @@ def get_testconfig_from_toml_file(file_path: str, table_names: List[str])\
     Returns:
         Optional[Dict[str, List[str]]]: The test configuration (paths and files) and None on error.
     """
+    # Create empty test config
+    testconfig : Dict[str, List[str]] = {
+        "testpaths" : [],
+        "python_files" : []
+    }
+
     try:
         # Read the file content
         with open(file_path, 'rb') as file:  # Use 'rb' mode for binary reading
             toml_data = tomllib.load(file)
-
-        # Create empty test config
-        testconfig : Dict[str, List[str]] = {
-            "testpaths" : [],
-         "python_files" : []
-        }
 
         # Iterate over sections
         for table_name in table_names:
@@ -64,7 +64,6 @@ def get_testconfig_from_toml_file(file_path: str, table_names: List[str])\
                 if section_content is None:
                     break
 
-            print(section_content)
             if isinstance(section_content, dict):
                 if 'testpaths' in section_content:
                     testpaths = section_content['testpaths']
@@ -82,8 +81,13 @@ def get_testconfig_from_toml_file(file_path: str, table_names: List[str])\
 
     except FileNotFoundError:
         print(f"The file '{file_path}' was not found.")
+    except OSError:
+        print(f"The file '{file_path}' could not be opened.")
     except Exception as e:
         print(f"An error occurred while processing the file: {e}")
+
+    if os.path.exists(file_path):
+        return testconfig
 
     return None
 
@@ -129,7 +133,11 @@ def get_testconfig_from_cfg_file(file_path: str, table_name: str) -> Optional[Di
 
     except Exception as e:
         print(f"An error occurred while parsing the CFG content: {e}")
-        return None
+
+    if os.path.exists(file_path):
+        return testconfig
+
+    return None
 
 
 def collect_testing_configuration(directory: str) -> Dict[str, Dict[str, List[str]]]:
@@ -189,3 +197,48 @@ def collect_testing_configuration(directory: str) -> Dict[str, Dict[str, List[st
         testconfigs["setup.cfg"] = get_testconfig_from_cfg_file(setup_cfg_file, "tool:pytest")
 
     return testconfigs
+
+
+def extract_testing_configuration(directory: str) -> Dict[str, List[str]]:
+    """
+    Collects testing configuration information from all files found.
+    Afterwards, extracts `testpaths` and `python_files` respecting the configuration
+    file precedences, defined in
+
+    [1] https://docs.pytest.org/en/9.0.x/reference/customize.html
+    [2] https://docs.pytest.org/en/stable/reference/reference.html#confval-python_files
+
+    That is,
+
+    1) pytest.toml or .pytest.toml
+    2) pytest.ini or .pytest.ini
+    3) pyproject.toml
+    4) tox.ini (if they have a [pytest] section)
+    5) setup.cfg (if they have a [tool:pytest] section)
+    """
+    configuration = collect_testing_configuration(directory)
+
+    # Create empty test config
+    testconfig : Dict[str, List[str]] = {
+        "testpaths" : ["tests"],
+        "python_files" : []
+    }
+
+    # The first four configs override everything
+    precedence_list = ['pytest.toml', '.pytest.toml', 'pytest.ini', '.pytest.ini']
+    for cfg_name in precedence_list:
+        curr_cfg = configuration.get(cfg_name)
+        if curr_cfg:
+            return curr_cfg
+
+    # The following files may do not override existing configuration
+    # So they only override, if they have set test paths
+    curr_cfg = configuration.get("tox.ini")
+    if curr_cfg and curr_cfg["testpaths"]:
+        return curr_cfg
+
+    curr_cfg = configuration.get("setup.cfg")
+    if curr_cfg and curr_cfg["testpaths"]:
+        return curr_cfg
+
+    return testconfig
