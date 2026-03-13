@@ -64,6 +64,7 @@ def get_testconfig_from_toml_file(file_path: str, table_names: List[str])\
                 if section_content is None:
                     break
 
+            print(section_content)
             if isinstance(section_content, dict):
                 if 'testpaths' in section_content:
                     testpaths = section_content['testpaths']
@@ -170,9 +171,10 @@ def collect_testing_configuration(directory: str) -> Dict[str, Dict[str, List[st
 
     if os.path.exists(pyproject_file):
         print(f"Found pyproject.toml file at: {pyproject_file}")
+        # The order of the table names is by purpose since 'ini_options' is a subtree of 'pytest'
         testconfigs["pyproject.toml"] = (
             get_testconfig_from_toml_file(pyproject_file,
-                                          ["tool.pytest", "tool.pytest.ini_options", "pytest"]))
+                                          ["tool.pytest.ini_options", "tool.pytest", "pytest"]))
 
     if os.path.exists(pytest_ini_file):
         print(f"Found pytest.ini file at: {pytest_ini_file}")
