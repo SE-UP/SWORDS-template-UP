@@ -6,3 +6,4 @@ scikit_learn
 simplejson
 PyGithub
 python-dotenv
+chardet
