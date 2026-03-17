@@ -161,7 +161,7 @@ def handle_rate_limit_error(exc: GithubException) -> None:
 def _read_input_csv(path: str) -> Optional[pd.DataFrame]:
     try:
         # Keep original behavior: semicolon input is common in your datasets
-        return pd.read_csv(path, sep=';', encoding='ISO-8859-1', on_bad_lines='warn')
+        return pd.read_csv(path, sep=',', encoding='ISO-8859-1', on_bad_lines='warn')
     except Exception as exc:
         print(f"Error reading input CSV {path}: {exc}")
         return None
