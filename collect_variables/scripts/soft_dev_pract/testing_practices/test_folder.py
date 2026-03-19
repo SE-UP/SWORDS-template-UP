@@ -88,11 +88,11 @@ def _candidate_root_test_dirs(repo) -> List[str]:
 
 def _scan_test_folder(repo, root_path: str, exts: Set[str]) -> (bool, List[str]):
     """
-    Recursively scan a test folder for programming files.
+    Scan a test folder for programming files. Stops early once any matching extension is found.
 
     Returns:
       - non_empty: True if any item exists under root_path
-      - found_exts: list of found extensions (deduped)
+      - found_exts: list of found extensions (stops after finding first match)
     """
      # ---------------------------
     # USe TRee Api (https://docs.github.com/en/rest/git/trees?apiVersion=2022-11-28) as we are looking for contents that may be hidden in nested fodlers 
@@ -144,6 +144,8 @@ def _scan_test_folder(repo, root_path: str, exts: Set[str]) -> (bool, List[str])
                 ext = os.path.splitext(item.name)[1].lower()
                 if ext in exts:
                     found_exts.add(ext)
+                    # Stop scanning as soon as one matching extension is found
+                    return non_empty, sorted(found_exts)
 
     return non_empty, sorted(found_exts)
 

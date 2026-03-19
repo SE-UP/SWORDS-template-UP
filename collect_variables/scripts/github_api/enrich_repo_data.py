@@ -22,6 +22,7 @@ import os
 import time
 import json #construct url and parse object eg: https://api.github.com/repos/SE-UP/SWORDS-template-UP/languages
 import argparse
+from urllib.error import HTTPError
 import pandas as pd
 import chardet  
 from dotenv import load_dotenv
@@ -65,6 +66,15 @@ def handle_rate_limit():
     """
     print('API rate limit exceeded. Sleeping for 15 minutes...')
     time.sleep(15 * 60)  # Sleep for 15 minutes
+
+
+def is_rate_limit_error(error):
+    """
+    Returns True when the exception represents a GitHub API rate limit response.
+    """
+    code = getattr(error, 'code', None)
+    msg = str(error).lower()
+    return code == 403 and 'rate limit' in msg
 
 def get_repo_languages_json(owner, repo_name):
     """
@@ -172,11 +182,22 @@ def get_repo_metadata(repo_url):
             'Total Downloads': total_downloads
         }
 
-    except GhApi.HTTP403ForbiddenError as http_error:
-        # Handle rate limit errors and retry after sleeping
-        print(f'Error: {http_error}')
-        handle_rate_limit()  # Sleep for 15 minutes
-        return get_repo_metadata(repo_url)  # Retry the request after waiting
+    except HTTPError as http_error:
+        if is_rate_limit_error(http_error):
+            print(f'Rate limit hit while processing {repo_url}: {http_error}')
+            handle_rate_limit()
+            return get_repo_metadata(repo_url)
+
+        if http_error.code == 404:
+            print(f'Repository not found or inaccessible, skipping {repo_url}')
+            return None
+
+        if http_error.code == 403:
+            print(f'GitHub access forbidden for {repo_url}: {http_error}')
+            return None
+
+        print(f'HTTP error processing {repo_url}: {http_error}')
+        return None
 
     except Exception as other_error:
         print(f'Error processing {repo_url}: {other_error}')
