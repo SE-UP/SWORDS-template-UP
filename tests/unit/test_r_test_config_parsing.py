@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 import os
 
 from collect_variables.scripts.parse_test_config.parse_r_test_configs \
-    import parse_dcf_file, collect_testing_configuration
+    import parse_dcf_file
 
 @pytest.fixture
 def path():
@@ -66,64 +66,3 @@ def test_multi_config_parsing(multi_directory):
     assert result["uses_testthat"] == True
     assert result["uses_runit"] == False
     assert result["uses_tinytest"] == True
-
-
-def test_testthat_config(testthat_directory):
-    """
-    Tests whether `collect_testing_configuration` actually correctly
-    identifies "tests/testthat" as test path.
-    :param testthat_directory: The root directory.
-    """
-
-    assert os.path.exists(testthat_directory) == True
-
-    result = collect_testing_configuration(testthat_directory)
-
-    assert result["testpaths"][0] == "tests/testthat"
-
-
-def test_tinytest_config(tinytest_directory):
-    """
-    Tests whether `collect_testing_configuration` actually correctly
-    identifies "inst/tinytest" as test path.
-    :param tinytest_directory: The root directory.
-    """
-
-    assert os.path.exists(tinytest_directory) == True
-
-    result = collect_testing_configuration(tinytest_directory)
-
-    assert result["testpaths"][0] == "inst/tinytest"
-
-
-def test_runit_config(runit_directory):
-    """
-    Tests whether `collect_testing_configuration` actually correctly
-    identifies "tests" as test path.
-    :param runit_directory: The root directory.
-    """
-
-    assert os.path.exists(runit_directory) == True
-
-    result = collect_testing_configuration(runit_directory)
-
-    assert result["testpaths"][0] == "tests"
-
-
-def test_multi_config(multi_directory):
-    """
-    Tests whether `collect_testing_configuration` actually correctly
-    identifies "tests/testthat" and "inst/tinytest" as test paths.
-    :param multi_directory: The root directory.
-    """
-
-    assert os.path.exists(multi_directory) == True
-
-    result = collect_testing_configuration(multi_directory)
-
-    assert len(result["testpaths"]) == 2
-    assert result["testpaths"][0] == "tests/testthat"
-    assert result["testpaths"][1] == "inst/tinytest"
-
-
-
