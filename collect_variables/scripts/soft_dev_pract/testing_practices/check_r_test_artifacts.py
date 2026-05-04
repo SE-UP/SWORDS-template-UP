@@ -78,13 +78,6 @@ def find_test_artifacts(root_path: str) -> Dict[str, bool]:
         Dict[str, bool]: A dictionary with the information about whether specific frameworks and artifacts were found.
     """
 
-    test_artifacts: Dict[str, bool] = {
-        'has_package_definition': False,
-        'uses_testthat': False,
-        'uses_runit': False,
-        'uses_tinytest': False
-    }
-
     file_path = os.path.join(root_path, "DESCRIPTION")
 
     test_config = parse_dcf_file(file_path)

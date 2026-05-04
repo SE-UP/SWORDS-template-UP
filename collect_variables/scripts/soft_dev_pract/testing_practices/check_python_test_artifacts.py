@@ -4,10 +4,11 @@ and leverages the 'parse_python_test_configs.py' for fetching the configuration.
 """
 
 import os
-from typing import List
+import fnmatch
+from typing import Dict, List
 
 from collect_variables.scripts.parse_test_config.parse_python_test_configs \
-    import collect_testing_configuration
+    import extract_testing_configuration
 
 
 def is_non_empty_python_file(file_path: str) -> bool:
@@ -70,7 +71,36 @@ def count_non_empty_python_files(directory: str) -> int:
     return nonempty_file_count
 
 
-def find_test_artifacts(root_path: str) -> List[str]:
+def search_artifacts_in_paths(root_path: str, test_config: Dict[str, List[str]]) -> List[str]:
+    """
+    Iterates over all directories in 'testpaths' and searches for files
+    matching the globs defined in 'python_files'.
+
+    Parameters:
+    - test_config: Dict[str, List[str]]
+        A dictionary with two keys:
+        - "testpaths": A list of directory paths to be searched.
+        - "python_files": A list of globs specifying the file patterns to search for.
+
+    Returns:
+    - List[str]:
+        A list of full file paths that match the specified globs.
+    """
+    found_files = []
+
+    for testpath in test_config["testpaths"]:
+        tests_root = os.path.join(root_path, testpath)
+        for root, _, files in os.walk(tests_root):
+            for filepattern in test_config["python_files"]:
+                for file in files:
+                    if fnmatch.fnmatch(file, filepattern):
+                        found_file = os.path.join(root, file)
+                        if is_non_empty_python_file(found_file):
+                            found_files.append(found_file)
+    return found_files
+
+
+def find_test_artifacts(root_path: str) -> Dict[str, bool]:
     """
     Validates the test paths by checking for non-empty Python files within each test path.
 
@@ -83,13 +113,33 @@ def find_test_artifacts(root_path: str) -> List[str]:
     Returns:
         List[str]: A list of valid test paths containing non-empty Python files.
     """
-    testconfigs = collect_testing_configuration(root_path)
+    test_config = extract_testing_configuration(root_path)
 
-    test_paths = []
+    # We get a dict of the form
+    #testconfig : Dict[str, List[str]] = {
+    #    "testpaths" : ["tests"],
+    #    "python_files" : []
+    #}
 
-    found_files = [path for path in test_paths if find_non_empty_python_files(path)]
+    # The default test file patterns are `test_*.py` and `*_test.py`
+    # This can be overridden with `python_files`
 
+    # Thus, if python_files is empty or does not exist, put the glob expressions to the list.
+    if "python_files" not in test_config or len(test_config["python_files"]) == 0:
+        test_config["python_files"].extend(["test_*.py", "*_test.py"])
 
-    # for each config, find the test files
+    found_files = search_artifacts_in_paths(root_path, test_config)
 
+    found_configs = test_config["found_configs"]
+
+    test_artifacts: Dict[str, bool] = {
+        'has_pyproject_toml' : "pyproject.toml" in found_configs,
+        'has_pytest_toml' : "pytest.toml" in found_configs or ".pytest.toml" in found_configs,
+        'has_pytest_ini' : "pytest.ini" in found_configs or ".pytest.ini" in found_configs,
+        'has_tox_ini' : "tox.ini" in found_configs,
+        'has_setup_cfg' : "setup.cfg" in found_configs,
+        'has_python_tests': len(found_files) > 0,
+    }
+
+    return test_artifacts
 

@@ -216,29 +216,35 @@ def extract_testing_configuration(directory: str) -> Dict[str, List[str]]:
     4) tox.ini (if they have a [pytest] section)
     5) setup.cfg (if they have a [tool:pytest] section)
     """
-    configuration = collect_testing_configuration(directory)
 
-    # Create empty test config
-    testconfig : Dict[str, List[str]] = {
+    default_config = {
         "testpaths" : ["tests"],
         "python_files" : []
     }
+
+    configuration = collect_testing_configuration(directory)
 
     # The first four configs override everything
     precedence_list = ['pytest.toml', '.pytest.toml', 'pytest.ini', '.pytest.ini']
     for cfg_name in precedence_list:
         curr_cfg = configuration.get(cfg_name)
         if curr_cfg:
+            curr_cfg["found_configs"] = list(configuration.keys())
             return curr_cfg
 
     # The following files may do not override existing configuration
     # So they only override, if they have set test paths
     curr_cfg = configuration.get("tox.ini")
     if curr_cfg and curr_cfg["testpaths"]:
+        curr_cfg["found_configs"] = list(configuration.keys())
         return curr_cfg
 
     curr_cfg = configuration.get("setup.cfg")
     if curr_cfg and curr_cfg["testpaths"]:
+        curr_cfg["found_configs"] = list(configuration.keys())
         return curr_cfg
 
-    return testconfig
+    if configuration:
+        curr_cfg["found_configs"] = list(configuration.keys())
+
+    return default_config

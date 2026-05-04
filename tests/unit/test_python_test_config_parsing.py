@@ -15,23 +15,23 @@ def path():
 
 @pytest.fixture
 def pyproject_file(path):
-    return os.path.join(path, "test_data/config_data/pyproject.toml")
+    return os.path.join(path, "test_data/config_data/Python/pyproject.toml")
 
 @pytest.fixture
 def invalid_pyproject_file(path):
-    return os.path.join(path, "test_data/config_data/pyprojectx.toml")
+    return os.path.join(path, "test_data/config_data/Python/pyprojectx.toml")
 
 @pytest.fixture
 def pytest_ini_file(path):
-    return os.path.join(path, "test_data/config_data/pytest.ini")
+    return os.path.join(path, "test_data/config_data/Python/pytest.ini")
 
 @pytest.fixture
 def empty_pytest_toml_file(path):
-    return os.path.join(path, "test_data/config_data/empty_pytest.toml")
+    return os.path.join(path, "test_data/config_data/Python/empty_pytest.toml")
 
 @pytest.fixture
 def config_data_path(path):
-    return os.path.join(path, "test_data/config_data")
+    return os.path.join(path, "test_data/config_data/Python")
 
 """
 Tests for parse_python_test_configs.py
